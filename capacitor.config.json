@@ -1,6 +1,6 @@
 {
-  "appId": "ai.devin.voxelcraft",
-  "appName": "VoxelCraft",
+  "appId": "ai.devin.dgmcraft",
+  "appName": "dgmcraft",
   "webDir": "dist",
   "android": {
     "allowMixedContent": false

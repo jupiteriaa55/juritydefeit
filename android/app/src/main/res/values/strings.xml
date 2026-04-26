@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">dgmcraft</string>
+    <string name="title_activity_main">dgmcraft</string>
+    <string name="package_name">ai.devin.voxelcraft</string>
+    <string name="custom_url_scheme">ai.devin.voxelcraft</string>
+</resources>

@@ -13,6 +13,7 @@ import { buildCastle, buildVillage, flatten } from './structures.js';
 import { UI } from './ui.js';
 import { Touch } from './touch.js';
 import { Tracker, Daily, loadInventory, saveInventory } from './achievements.js';
+import { Shop } from './shop.js';
 import { Particles } from './particles.js';
 import { Held } from './held.js';
 import { Sky } from './sky.js';
@@ -49,12 +50,13 @@ const redstone = new Redstone(world);
 const ui = new UI();
 const tracker = new Tracker();
 const daily = new Daily();
+const shop = new Shop();
 const particles = new Particles(scene);
 const held = new Held(renderer);
 const sky = new Sky(scene);
 const npcs = [];
 const chunkMeshes = new Map(); // key -> { opaque, trans }
-let timeOfDay = 0.30;
+let timeOfDay = 0.45;
 let dayLengthSec = 240;
 let lastNight = false;
 
@@ -91,7 +93,43 @@ function giveItems(map) {
   refreshHotbar();
 }
 tracker.giveItems = giveItems;
-tracker.onUnlock = (a) => ui.toast('ДОСТИЖЕНИЕ', a.name);
+tracker.onUnlock = (a) => {
+  ui.toast('ДОСТИЖЕНИЕ', a.name);
+  shop.awardGems(20, a.id);
+  ui.toast('+20 💎', 'За «' + a.name + '»', '#ffd84a');
+  ui.updateGems(shop.gems());
+};
+ui.updateGems(shop.gems());
+
+function openShop() {
+  ui.showShop(shop, (id) => {
+    const r = shop.buy(id);
+    if (!r.ok) { ui.toast('МАГАЗИН', r.reason, '#ff8a8a'); return; }
+    ui.toast('КУПЛЕНО', r.item.name, '#6ee7ff');
+    openShop();
+  }, (id, kind, mode) => {
+    if (mode === 'off') shop.unequip(kind);
+    else shop.equip(id);
+    applyEquipped();
+    openShop();
+  }, () => {
+    const r = shop.openLootbox();
+    if (!r.ok) { ui.toast('СУНДУК', r.reason, '#ff8a8a'); return; }
+    ui.showLootboxResult(r, shop);
+    openShop();
+  });
+}
+
+// Apply equipped cosmetics to the held-item renderer.
+function applyEquipped() {
+  const tints = {
+    pickaxe: shop.equippedFor('pickaxe_tint')?.tint,
+    sword:   shop.equippedFor('sword_tint')?.tint,
+    axe:     shop.equippedFor('axe_tint')?.tint,
+    shovel:  shop.equippedFor('shovel_tint')?.tint,
+  };
+  if (held.setTints) held.setTints(tints);
+}
 
 // ----- Hotbar -----
 let activeSlot = 0;
@@ -103,6 +141,8 @@ function refreshHotbar() {
 }
 ui.buildHotbar(HOTBAR, (id) => inventoryCounts[id] ?? 0);
 ui.onSlotClick = (i) => { activeSlot = i; refreshHotbar(); };
+applyEquipped();
+refreshHotbar();
 
 // ----- Chunk management -----
 const RENDER_RADIUS = 5;
@@ -324,6 +364,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyF') setMode(player.mode === 'creative' ? 'survival' : 'creative');
   if (e.code === 'KeyJ') ui.showAchievements(tracker.unlockedSet());
   if (e.code === 'KeyK') ui.showDaily(daily, !daily.canClaim(), null);
+  if (e.code === 'KeyB') openShop();
   if (e.code === 'KeyE') tryInteract();
   if (e.code === 'KeyR') {
     if (confirm('Сгенерировать новый случайный мир? Текущие изменения сохранятся отдельно.')) {
@@ -342,6 +383,10 @@ document.addEventListener('click', (e) => {
     if (reward) {
       giveItems(reward.items);
       ui.toast('НАГРАДА', reward.label, '#6ee7ff');
+      const gemBonus = 25 + 10 * Math.max(0, daily.state.streak - 1);
+      shop.awardGems(gemBonus);
+      ui.updateGems(shop.gems());
+      ui.toast('+' + gemBonus + ' 💎', 'Ежедневный бонус', '#ffd84a');
       ui.showDaily(daily, true, reward);
     }
   }
@@ -377,6 +422,12 @@ function tryBreak() {
     }
   }
   tracker.onBlockBreak(baseId);
+  // Reward gems for mining ores (cosmetic-only currency, fully gameplay-earned)
+  const oreGems = { [B.COAL_ORE]: 1, [B.IRON_ORE]: 2, [B.GOLD_ORE]: 4, [B.DIAMOND_ORE]: 10 };
+  if (oreGems[baseId]) {
+    shop.awardGems(oreGems[baseId]);
+    ui.updateGems?.(shop.gems());
+  }
   refreshHotbar();
 }
 
@@ -485,6 +536,8 @@ function resize() {
   camera.updateProjectionMatrix();
 }
 resize();
+// Debug exposure
+window.dgm = { renderer, scene, camera, world, player, shop, sky, get t(){return timeOfDay}, set t(v){timeOfDay=v} };
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 200));
 

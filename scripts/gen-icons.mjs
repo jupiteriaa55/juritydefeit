@@ -1,6 +1,6 @@
 // Generate PNG icons for PWA / Android / iOS using node:canvas-free approach.
 // We just write a tiny PNG procedurally so we don't need extra deps.
-// 192/512 maskable icons with VoxelCraft logo.
+// 192/512 maskable icons with dgmcraft logo.
 
 import { writeFileSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';

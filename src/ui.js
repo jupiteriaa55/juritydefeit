@@ -4,10 +4,12 @@
 import * as B from './blocks.js';
 import { swatchColor } from './textures.js';
 import { ACHIEVEMENTS, DAILY_REWARDS, blockName } from './achievements.js';
+import { CATALOG, rarityMeta } from './shop.js';
 
 export class UI {
   constructor() {
     this.hotbarEl = document.getElementById('hotbar');
+    this.gemsEl = document.getElementById('gems-count');
     this.modeLabel = document.getElementById('mode-label');
     this.dialogEl = document.getElementById('dialog');
     this.dialogWho = this.dialogEl.querySelector('.who');
@@ -162,5 +164,73 @@ export class UI {
       ? `<div style="opacity:.7;font-size:12px;text-align:center;margin-top:8px;">Возвращайтесь завтра, чтобы продолжить серию.</div>`
       : `<div style="text-align:center;margin-top:8px;"><button id="claim-daily" style="background:#ffd84a;color:#111;font-weight:800;padding:10px 20px;border:none;border-radius:10px;cursor:pointer;font-size:15px;">Забрать награду дня ${day}</button></div>`;
     this.openModal('Награда дня', `<div style="opacity:.85;margin-bottom:6px;">Серия: <b>${daily.state.streak}</b> дн.</div>${claimedNotice}${grid}${btn}`);
+  }
+
+  // ---------------- SHOP / LOOTBOX ----------------
+  // Renders a cosmetic-only shop with disclosed lootbox odds.
+  showShop(shop, onBuy, onEquip, onLootbox) {
+    const gems = shop.gems();
+    const ratesHtml = shop.rates().map(r => `<span style="color:${r.color};font-weight:700;">${r.label} — ${r.percent.toFixed(1)}%</span>`).join(' &middot; ');
+    const lootboxBlock = `
+      <div style="background:linear-gradient(135deg,rgba(255,184,74,0.2),rgba(155,135,255,0.2));border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:14px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+          <div>
+            <div style="font-weight:800;color:#ffd84a;font-size:16px;">Космет-сундук</div>
+            <div style="opacity:.85;font-size:12px;margin-top:2px;">Только косметика. На геймплей не влияет. Дубликаты не выпадают (возврат камешков).</div>
+            <div style="font-size:11px;margin-top:6px;opacity:.9;">Шансы: ${ratesHtml}</div>
+          </div>
+          <button id="open-lootbox" style="background:#ffb84a;color:#111;font-weight:800;padding:10px 18px;border:none;border-radius:10px;cursor:pointer;white-space:nowrap;">
+            Открыть · ${shop.lootboxPrice()} 💎
+          </button>
+        </div>
+      </div>`;
+    const items = CATALOG.map(item => {
+      const meta = rarityMeta(item.rarity);
+      const owned = shop.isOwned(item.id);
+      const equipped = shop.equippedFor(item.kind)?.id === item.id;
+      const swatch = (item.tint !== undefined)
+        ? `<div style="width:40px;height:40px;border-radius:8px;background:#${item.tint.toString(16).padStart(6,'0')};border:1px solid rgba(255,255,255,0.2);"></div>`
+        : `<div style="width:40px;height:40px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:18px;color:${meta.color};">✦</div>`;
+      const action = equipped
+        ? `<button class="shop-equip" data-id="${item.id}" data-kind="${item.kind}" data-mode="off" style="background:rgba(110,231,255,0.2);color:#6ee7ff;border:1px solid #6ee7ff;padding:6px 10px;border-radius:8px;cursor:pointer;font-weight:700;">Снять</button>`
+        : owned
+        ? `<button class="shop-equip" data-id="${item.id}" data-kind="${item.kind}" data-mode="on" style="background:#6ee7ff;color:#111;border:none;padding:6px 10px;border-radius:8px;cursor:pointer;font-weight:700;">Надеть</button>`
+        : `<button class="shop-buy" data-id="${item.id}" style="background:${gems >= item.price ? '#ffd84a' : 'rgba(255,255,255,0.1)'};color:${gems >= item.price ? '#111' : '#888'};border:none;padding:6px 10px;border-radius:8px;cursor:${gems >= item.price ? 'pointer' : 'not-allowed'};font-weight:700;">${item.price} 💎</button>`;
+      return `<div style="display:flex;gap:10px;align-items:center;padding:10px;border:1px solid ${equipped ? '#6ee7ff' : 'rgba(255,255,255,0.08)'};border-radius:10px;margin-bottom:6px;background:${equipped ? 'rgba(110,231,255,0.06)' : 'rgba(255,255,255,0.02)'};">
+        ${swatch}
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;">${item.name}</div>
+          <div style="font-size:11px;color:${meta.color};">${meta.label}</div>
+        </div>
+        ${action}
+      </div>`;
+    }).join('');
+    const html = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="opacity:.9;font-size:13px;">Только косметика. Никакого pay-to-win.</div>
+        <div style="background:rgba(255,216,74,0.15);border:1px solid #ffd84a;border-radius:8px;padding:4px 10px;font-weight:800;color:#ffd84a;">${gems} 💎</div>
+      </div>
+      ${lootboxBlock}
+      ${items}`;
+    this.openModal('Магазин', html);
+    const m = this.modal;
+    m.querySelectorAll('.shop-buy').forEach(b => b.addEventListener('click', (e) => onBuy(e.currentTarget.dataset.id)));
+    m.querySelectorAll('.shop-equip').forEach(b => b.addEventListener('click', (e) => onEquip(e.currentTarget.dataset.id, e.currentTarget.dataset.kind, e.currentTarget.dataset.mode)));
+    const lb = m.querySelector('#open-lootbox');
+    if (lb) lb.addEventListener('click', () => onLootbox());
+  }
+
+  updateGems(n) {
+    if (this.gemsEl) this.gemsEl.textContent = String(n);
+  }
+
+  showLootboxResult(result, shop) {
+    if (result.refund) {
+      this.toast('СУНДУК', `Все предметы редкости «${rarityMeta(result.rarity).label}» уже собраны. Камешки возвращены.`, '#6ee7ff');
+      return;
+    }
+    const item = result.item;
+    const meta = rarityMeta(item.rarity);
+    this.toast('ВЫПАЛО', `${item.name} (${meta.label})`, meta.color);
   }
 }

@@ -14,9 +14,35 @@ function makeSpriteCanvas(draw, size = 128) {
   return tex;
 }
 
+// Build a sky dome: large inverted sphere with a vertical gradient texture,
+// so we always have a visible sky even when scene.background isn't honoured.
+function makeSkyDome() {
+  const cv = document.createElement('canvas');
+  cv.width = 4; cv.height = 256;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0, '#7fb6ec');    // zenith
+  g.addColorStop(0.50, '#a7d2f4');  // upper sky
+  g.addColorStop(0.78, '#cfe5fa');  // mid
+  g.addColorStop(1, '#ffffff');     // horizon
+  ctx.fillStyle = g; ctx.fillRect(0, 0, cv.width, cv.height);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, depthWrite: false, depthTest: false, fog: false, toneMapped: false });
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(450, 32, 20), mat);
+  dome.userData.gradTex = tex;
+  dome.renderOrder = -1000;
+  dome.frustumCulled = false;
+  return dome;
+}
+
 export class Sky {
   constructor(scene) {
     this.scene = scene;
+    this.dome = makeSkyDome();
+    scene.add(this.dome);
     // Sun
     const sunTex = makeSpriteCanvas((ctx, s) => {
       const g = ctx.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
@@ -110,5 +136,20 @@ export class Sky {
       if (c.position.z - cameraPos.z < -130) c.position.z += 260;
     }
     this.cloudGroup.position.set(0, 0, 0);
+    // Move dome with camera so horizon is always at the camera's altitude.
+    if (this.dome) {
+      this.dome.position.set(cameraPos.x, cameraPos.y, cameraPos.z);
+      // Tint the dome by day intensity: blue daytime → orange sunset → deep blue night.
+      let r, g, b;
+      if (dayInt > 0.4) {
+        r = 0.6 + dayInt * 0.4; g = 0.82; b = 1.0;
+      } else if (dayInt > 0.0) {
+        const k = dayInt / 0.4;
+        r = 0.95 - k * 0.25; g = 0.55 + k * 0.27; b = 0.45 + k * 0.55;
+      } else {
+        r = 0.06; g = 0.08; b = 0.18;
+      }
+      this.dome.material.color.setRGB(r, g, b);
+    }
   }
 }

@@ -235,17 +235,45 @@ export class Held {
     this.tool = 'pickaxe';
     this.blockId = null;
     this._cache = {};
+    this.tints = {}; // pickaxe/sword/axe/shovel -> hex colour
+  }
+
+  setTints(tints) {
+    this.tints = { ...(tints || {}) };
+    this._cache = {};   // invalidate cached meshes so tints re-apply
+    // refresh current display
+    if (this.tool && this.tool !== 'block') {
+      while (this.holder.children.length) this.holder.remove(this.holder.children[0]);
+      this.holder.add(this._getTool(this.tool));
+    }
   }
 
   _getTool(name) {
-    if (!this._cache[name]) {
+    const tint = this.tints[name];
+    const cacheKey = name + ':' + (tint == null ? 'def' : tint.toString(16));
+    if (!this._cache[cacheKey]) {
       const sprite = name === 'sword' ? SWORD
         : name === 'shovel' ? SHOVEL
         : name === 'axe' ? AXE
         : PICKAXE;
-      this._cache[name] = buildSpriteMesh(sprite, 0.09);
+      const mesh = buildSpriteMesh(sprite, 0.09);
+      if (tint != null) {
+        // multiply vertex colours by tint
+        const colors = mesh.geometry.attributes.color;
+        const arr = colors.array;
+        const tr = ((tint >> 16) & 0xff) / 255;
+        const tg = ((tint >>  8) & 0xff) / 255;
+        const tb = ( tint        & 0xff) / 255;
+        for (let i = 0; i < arr.length; i += 3) {
+          arr[i]   *= tr;
+          arr[i+1] *= tg;
+          arr[i+2] *= tb;
+        }
+        colors.needsUpdate = true;
+      }
+      this._cache[cacheKey] = mesh;
     }
-    return this._cache[name].clone();
+    return this._cache[cacheKey].clone();
   }
 
   setHeld(blockId, alwaysShowAsBlock = false) {

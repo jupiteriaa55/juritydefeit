@@ -18,8 +18,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'favicon.svg'],
       manifest: {
-        name: 'VoxelCraft — 3D Sandbox',
-        short_name: 'VoxelCraft',
+        name: 'dgmcraft — 3D Sandbox',
+        short_name: 'dgmcraft',
         description: 'Воксельная 3D-песочница: замок, деревня, NPC, редстоун, день/ночь.',
         theme_color: '#0b1020',
         background_color: '#0b1020',
