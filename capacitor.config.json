@@ -1,0 +1,14 @@
+{
+  "appId": "ai.devin.dgmcraft",
+  "appName": "dgmcraft",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "always"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
