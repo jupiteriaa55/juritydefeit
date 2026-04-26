@@ -1,0 +1,28 @@
+{
+  "name": "voxelcraft",
+  "version": "1.0.0",
+  "description": "Voxel sandbox 3D game inspired by Minecraft — castle, village, NPCs, redstone, PWA + Android APK.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "lint": "echo 'no linter configured'",
+    "cap:sync": "cap sync",
+    "cap:android": "cap add android || true && cap sync android",
+    "cap:ios": "cap add ios || true && cap sync ios",
+    "android:build": "npm run build && cap sync android && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "three": "^0.160.0",
+    "simplex-noise": "^4.0.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "vite-plugin-pwa": "^0.20.5",
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/ios": "^6.1.2"
+  }
+}

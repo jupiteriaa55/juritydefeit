@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#0b1020" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <title>VoxelCraft — 3D Sandbox</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b1020; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; overscroll-behavior: none; }
+      #app { position: fixed; inset: 0; }
+      canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+      #hud { position: fixed; inset: 0; pointer-events: none; }
+      #crosshair { position: absolute; left: 50%; top: 50%; width: 20px; height: 20px; transform: translate(-50%, -50%); pointer-events: none; }
+      #crosshair::before, #crosshair::after { content: ""; position: absolute; background: rgba(255,255,255,0.85); }
+      #crosshair::before { left: 9px; top: 0; width: 2px; height: 20px; }
+      #crosshair::after { top: 9px; left: 0; height: 2px; width: 20px; }
+      #hotbar { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 4px; background: rgba(0,0,0,0.45); border-radius: 8px; pointer-events: auto; }
+      .slot { width: 48px; height: 48px; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.18); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #ddd; position: relative; }
+      .slot.active { border-color: #ffd84a; box-shadow: 0 0 0 2px rgba(255,216,74,0.35); }
+      .slot .swatch { width: 28px; height: 28px; border-radius: 4px; box-shadow: inset 0 -6px 0 rgba(0,0,0,0.25); }
+      .slot .name { position: absolute; bottom: 2px; right: 4px; font-size: 9px; opacity: .8; }
+      .slot .num { position: absolute; top: 1px; left: 4px; font-size: 9px; opacity: .7; }
+      #info { position: absolute; top: 8px; left: 8px; padding: 6px 10px; background: rgba(0,0,0,0.45); border-radius: 6px; font-size: 12px; line-height: 1.4; max-width: 60vw; }
+      #info b { color: #ffd84a; }
+      #mode-pill { position: absolute; top: 8px; right: 8px; padding: 6px 12px; background: rgba(0,0,0,0.55); border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
+      #mode-pill .creative { color: #6ee7ff; }
+      #mode-pill .survival { color: #ffb86b; }
+      #dialog { position: absolute; left: 50%; bottom: 80px; transform: translateX(-50%); max-width: 520px; padding: 12px 16px; background: rgba(0,0,0,0.78); border: 1px solid rgba(255,255,255,0.18); border-radius: 10px; font-size: 14px; display: none; pointer-events: auto; }
+      #dialog .who { color: #ffd84a; font-weight: 700; margin-bottom: 4px; }
+      #dialog .hint { margin-top: 6px; font-size: 11px; opacity: .65; }
+      #start { position: absolute; inset: 0; background: radial-gradient(ellipse at center, #182040 0%, #06080f 80%); display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; text-align: center; padding: 24px; }
+      #start h1 { font-size: 48px; margin: 0 0 8px; letter-spacing: 2px; background: linear-gradient(180deg,#fff,#9ab); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      #start p { max-width: 600px; line-height: 1.5; opacity: .85; }
+      #start button { margin-top: 18px; padding: 14px 28px; background: #ffd84a; color: #111; border: none; border-radius: 10px; font-size: 18px; font-weight: 800; cursor: pointer; }
+      #start button:hover { filter: brightness(1.08); }
+      .controls { margin-top: 22px; display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 6px 18px; font-size: 13px; opacity: .85; max-width: 540px; }
+      .controls span { font-family: monospace; color: #ffd84a; }
+      #touch { position: absolute; inset: 0; pointer-events: none; display: none; }
+      #touch.on { display: block; }
+      #stick { position: absolute; left: 24px; bottom: 24px; width: 140px; height: 140px; border-radius: 50%; background: rgba(255,255,255,0.07); border: 2px solid rgba(255,255,255,0.18); pointer-events: auto; }
+      #stick .knob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin-left: -28px; margin-top: -28px; border-radius: 50%; background: rgba(255,255,255,0.25); border: 2px solid rgba(255,255,255,0.4); }
+      .tbtn { position: absolute; pointer-events: auto; width: 64px; height: 64px; border-radius: 50%; background: rgba(255,255,255,0.10); border: 2px solid rgba(255,255,255,0.25); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+      .tbtn:active { background: rgba(255,216,74,0.35); }
+      #btn-jump { right: 28px; bottom: 110px; }
+      #btn-place { right: 28px; bottom: 28px; background: rgba(110,231,255,0.18); }
+      #btn-break { right: 110px; bottom: 28px; background: rgba(255,99,99,0.18); }
+      #btn-mode { right: 28px; top: 60px; width: auto; padding: 8px 12px; height: auto; border-radius: 8px; }
+      #btn-next { right: 110px; top: 60px; width: auto; padding: 8px 12px; height: auto; border-radius: 8px; }
+      .blocker { position: absolute; left: 50%; top: 60%; transform: translateX(-50%); padding: 8px 14px; background: rgba(0,0,0,0.6); border-radius: 8px; font-size: 12px; opacity: .8; }
+      @media (max-width: 720px) { #info { font-size: 10px; max-width: 80vw; } #start h1 { font-size: 32px; } .controls { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game"></canvas>
+      <div id="hud">
+        <div id="info">
+          <div><b>VoxelCraft</b> — воксельная 3D-песочница</div>
+          <div>WASD — движение • Пробел — прыжок • Shift — бег • F — режим • E — диалог с NPC • 1–9 — слот • ЛКМ — ломать • ПКМ — ставить</div>
+        </div>
+        <div id="mode-pill"><span id="mode-label" class="creative">CREATIVE</span></div>
+        <div id="crosshair"></div>
+        <div id="hotbar"></div>
+        <div id="dialog"><div class="who"></div><div class="text"></div><div class="hint">Нажмите E или коснитесь экрана, чтобы закрыть</div></div>
+        <div id="touch">
+          <div id="stick"><div class="knob"></div></div>
+          <button id="btn-jump" class="tbtn">▲</button>
+          <button id="btn-place" class="tbtn">+</button>
+          <button id="btn-break" class="tbtn">×</button>
+          <button id="btn-mode" class="tbtn">F</button>
+          <button id="btn-next" class="tbtn">→</button>
+        </div>
+      </div>
+      <div id="start">
+        <h1>VoxelCraft</h1>
+        <p>3D-песочница: процедурный мир из кубов, замок и деревня с жителями. Стройте, ломайте, исследуйте. Включена логика «редстоуна» (нажмите кнопку рядом с лампой).</p>
+        <button id="play-btn">Играть</button>
+        <div class="controls">
+          <div>Движение: <span>W A S D</span></div>
+          <div>Прыжок: <span>Пробел</span></div>
+          <div>Бег: <span>Shift</span></div>
+          <div>Режим: <span>F</span></div>
+          <div>Слот: <span>1 — 9</span></div>
+          <div>Колесо: <span>смена слота</span></div>
+          <div>Ломать: <span>ЛКМ</span></div>
+          <div>Ставить: <span>ПКМ</span></div>
+          <div>NPC диалог: <span>E</span></div>
+          <div>Выход курсора: <span>Esc</span></div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
