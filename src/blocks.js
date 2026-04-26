@@ -1,7 +1,9 @@
-// Block type definitions. Color stored as 0xRRGGBB triplets per face slot.
-// Faces: [+x, -x, +y, -y, +z, -z] but for simplicity we use top/side/bottom triplet.
-// Solid: blocks player movement and is rendered with full faces.
+// Block type definitions. Each block has top/side/bottom face tile names that
+// map into the procedural texture atlas.
+//
+// Solid: blocks player movement.
 // Transparent: still rendered but does not occlude neighbours from the inside.
+// Wave: vertex-shader animation tag (0=none, 1=grass-top sway, 2=leaves sway, 3=water ripple).
 
 export const AIR = 0;
 export const GRASS = 1;
@@ -21,64 +23,81 @@ export const WIRE = 14;
 export const BUTTON = 15;
 export const ROOF = 16;
 export const PATH = 17;
+// new blocks
+export const COAL_ORE = 18;
+export const IRON_ORE = 19;
+export const GOLD_ORE = 20;
+export const DIAMOND_ORE = 21;
+export const SNOW = 22;
+export const ICE = 23;
+export const GRAVEL = 24;
+export const BEDROCK = 25;
+export const OBSIDIAN = 26;
+export const CACTUS = 27;
+export const FLOWER_RED = 28;
+export const FLOWER_YELLOW = 29;
+export const TALL_GRASS = 30;
+export const TORCH = 31;
+export const SNOW_GRASS = 32;
 
-const def = (name, top, side, bottom, opts = {}) => ({
+const def = (name, opts = {}) => ({
   name,
-  top,
-  side,
-  bottom,
   solid: opts.solid !== false,
   transparent: !!opts.transparent,
   emissive: opts.emissive || 0,
-  redstone: opts.redstone || null
+  redstone: opts.redstone || null,
+  wave: opts.wave || 0,
+  cross: !!opts.cross   // rendered as crossed quads (flowers, grass, torch)
 });
 
 export const BLOCKS = {
-  [AIR]:      { name: 'air', solid: false, transparent: true, top: 0, side: 0, bottom: 0 },
-  [GRASS]:    def('Трава',     0x6cbf3a, 0x7a5a36, 0x6b4a2a),
-  [DIRT]:     def('Земля',     0x8b5a2b, 0x8b5a2b, 0x8b5a2b),
-  [STONE]:    def('Камень',    0x7d7d7d, 0x7d7d7d, 0x7d7d7d),
-  [WOOD]:     def('Бревно',    0x6b4a25, 0x8a6135, 0x6b4a25),
-  [LEAVES]:   def('Листва',    0x3f8a2f, 0x3f8a2f, 0x3f8a2f, { transparent: true }),
-  [SAND]:     def('Песок',     0xe2cf86, 0xe2cf86, 0xe2cf86),
-  [WATER]:    def('Вода',      0x2a6dd6, 0x2a6dd6, 0x2a6dd6, { solid: false, transparent: true }),
-  [PLANK]:    def('Доски',     0xb3823f, 0xb3823f, 0xb3823f),
-  [COBBLE]:   def('Булыжник',  0x6e6e6e, 0x6e6e6e, 0x6e6e6e),
-  [BRICK]:    def('Кирпич',    0xa8493b, 0xa8493b, 0xa8493b),
-  [GLASS]:    def('Стекло',    0xc7e7ff, 0xc7e7ff, 0xc7e7ff, { transparent: true }),
-  [LAMP_OFF]: def('Лампа',     0x6b5018, 0x6b5018, 0x6b5018, { redstone: 'lamp' }),
-  [LAMP_ON]:  def('Лампа+',    0xfff0a0, 0xfff0a0, 0xfff0a0, { emissive: 0xfff0a0, redstone: 'lamp_on' }),
-  [WIRE]:     def('Провод',    0xc02a2a, 0xc02a2a, 0xc02a2a, { redstone: 'wire' }),
-  [BUTTON]:   def('Кнопка',    0xe65a2e, 0xc94020, 0xc94020, { redstone: 'button' }),
-  [ROOF]:     def('Крыша',     0x6e2a23, 0x6e2a23, 0x6e2a23),
-  [PATH]:     def('Дорожка',   0x9b8761, 0x8a6f4a, 0x6f5a3a)
+  [AIR]:          { name: 'air', solid: false, transparent: true, wave: 0, cross: false },
+  [GRASS]:        def('Трава'),
+  [DIRT]:         def('Земля'),
+  [STONE]:        def('Камень'),
+  [WOOD]:         def('Бревно'),
+  [LEAVES]:       def('Листва',     { transparent: true, wave: 2 }),
+  [SAND]:         def('Песок'),
+  [WATER]:        def('Вода',       { solid: false, transparent: true, wave: 3 }),
+  [PLANK]:        def('Доски'),
+  [COBBLE]:       def('Булыжник'),
+  [BRICK]:        def('Кирпич'),
+  [GLASS]:        def('Стекло',     { transparent: true }),
+  [LAMP_OFF]:     def('Лампа',      { redstone: 'lamp' }),
+  [LAMP_ON]:      def('Лампа+',     { emissive: 0xfff0a0, redstone: 'lamp_on' }),
+  [WIRE]:         def('Провод',     { redstone: 'wire' }),
+  [BUTTON]:       def('Кнопка',     { redstone: 'button' }),
+  [ROOF]:         def('Крыша'),
+  [PATH]:         def('Дорожка'),
+  [COAL_ORE]:     def('Уголь'),
+  [IRON_ORE]:     def('Железо'),
+  [GOLD_ORE]:     def('Золото'),
+  [DIAMOND_ORE]:  def('Алмаз'),
+  [SNOW]:         def('Снег'),
+  [ICE]:          def('Лёд',        { transparent: true }),
+  [GRAVEL]:       def('Гравий'),
+  [BEDROCK]:      def('Бедрок'),
+  [OBSIDIAN]:     def('Обсидиан'),
+  [CACTUS]:       def('Кактус'),
+  [FLOWER_RED]:   def('Мак',        { solid: false, transparent: true, cross: true }),
+  [FLOWER_YELLOW]:def('Одуванчик',  { solid: false, transparent: true, cross: true }),
+  [TALL_GRASS]:   def('Высокая трава', { solid: false, transparent: true, cross: true, wave: 1 }),
+  [TORCH]:        def('Факел',      { solid: false, transparent: true, cross: true, emissive: 0xffb049 }),
+  [SNOW_GRASS]:   def('Снежная трава')
 };
 
-export function isSolid(id) {
-  const b = BLOCKS[id];
-  return !!b && b.solid;
-}
-
-export function isTransparent(id) {
-  const b = BLOCKS[id];
-  return !b || b.transparent;
-}
-
-export function isOpaque(id) {
-  return id !== AIR && !BLOCKS[id]?.transparent;
-}
-
-export function blockName(id) {
-  return BLOCKS[id]?.name || 'air';
-}
-
-export function blockColor(id, face) {
-  const b = BLOCKS[id];
-  if (!b) return 0xffffff;
-  if (face === 'top') return b.top;
-  if (face === 'bottom') return b.bottom;
-  return b.side;
-}
+export function isSolid(id) { return !!BLOCKS[id] && BLOCKS[id].solid; }
+export function isTransparent(id) { return !BLOCKS[id] || BLOCKS[id].transparent; }
+export function isOpaque(id) { return id !== AIR && !BLOCKS[id]?.transparent; }
+export function isCross(id) { return !!BLOCKS[id]?.cross; }
+export function blockName(id) { return BLOCKS[id]?.name || 'air'; }
+export function waveOf(id) { return BLOCKS[id]?.wave || 0; }
 
 // Hotbar palette (Creative gives all of these).
-export const HOTBAR = [GRASS, DIRT, STONE, COBBLE, PLANK, BRICK, GLASS, LAMP_OFF, BUTTON, WIRE];
+export const HOTBAR = [GRASS, DIRT, STONE, COBBLE, PLANK, BRICK, GLASS, TORCH, LAMP_OFF, BUTTON];
+
+// Tools list for held-item display.
+export const TOOL_PICKAXE = 'pickaxe';
+export const TOOL_SHOVEL  = 'shovel';
+export const TOOL_AXE     = 'axe';
+export const TOOL_SWORD   = 'sword';

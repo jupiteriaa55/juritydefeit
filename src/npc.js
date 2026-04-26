@@ -55,12 +55,56 @@ export class NPC {
     const shirt = shirtHues[Math.floor(Math.random() * shirtHues.length)];
     const pants = pantsHues[Math.floor(Math.random() * pantsHues.length)];
 
-    const matSkin = new THREE.MeshLambertMaterial({ color: skin });
     const matShirt = new THREE.MeshLambertMaterial({ color: shirt });
     const matPants = new THREE.MeshLambertMaterial({ color: pants });
 
+    // Procedural face texture for the head (per-face).
+    function faceTexture(skinColor) {
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 16; const ctx = cv.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      const sk = '#' + skinColor.toString(16).padStart(6, '0');
+      ctx.fillStyle = sk; ctx.fillRect(0, 0, 16, 16);
+      // hair top stripe
+      ctx.fillStyle = '#3a2a18'; ctx.fillRect(0, 0, 16, 3);
+      // eyes
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(4, 7, 2, 2); ctx.fillRect(10, 7, 2, 2);
+      ctx.fillStyle = '#1f3a8a'; ctx.fillRect(5, 8, 1, 1); ctx.fillRect(11, 8, 1, 1);
+      // brows
+      ctx.fillStyle = '#3a2a18'; ctx.fillRect(4, 6, 3, 1); ctx.fillRect(9, 6, 3, 1);
+      // nose
+      ctx.fillStyle = '#a3754a'; ctx.fillRect(7, 9, 2, 2);
+      // mouth
+      ctx.fillStyle = '#6b3a25'; ctx.fillRect(6, 12, 4, 1);
+      // beard hint
+      ctx.fillStyle = 'rgba(40,25,15,0.5)'; ctx.fillRect(5, 13, 6, 1);
+      const t = new THREE.CanvasTexture(cv);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      t.colorSpace = THREE.SRGBColorSpace;
+      return t;
+    }
+    function plainSkin(skinColor) {
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = 16; const ctx = cv.getContext('2d');
+      const sk = '#' + skinColor.toString(16).padStart(6, '0');
+      ctx.fillStyle = sk; ctx.fillRect(0, 0, 16, 16);
+      ctx.fillStyle = '#3a2a18'; ctx.fillRect(0, 0, 16, 3);
+      const t = new THREE.CanvasTexture(cv);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      t.colorSpace = THREE.SRGBColorSpace;
+      return t;
+    }
+    const faceTex = faceTexture(skin);
+    const sideTex = plainSkin(skin);
+    const matFace = new THREE.MeshLambertMaterial({ map: faceTex });
+    const matSide = new THREE.MeshLambertMaterial({ map: sideTex });
+    const matSkin = new THREE.MeshLambertMaterial({ color: skin });
+    // Six face order in BoxGeometry: +X, -X, +Y, -Y, +Z, -Z.
+    // Front (+Z) gets the face; others use plain skin.
+    const headMats = [matSide, matSide, matSide, matSide, matFace, matSide];
+
     const g = new THREE.Group();
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), matSkin);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), headMats);
     head.position.y = 1.55;
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.7, 0.32), matShirt);
     body.position.y = 1.0;

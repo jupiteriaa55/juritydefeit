@@ -15,6 +15,15 @@ export class UI {
     this.toasts = this.makeToastHost();
     this.modal = this.makeModal();
     this.onSlotClick = null;
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.isModalOpen()) { this.closeModal(); e.stopPropagation(); }
+    }, true);
+    document.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t && (t.id === 'modal-close' || t.closest && t.closest('#modal-close'))) {
+        this.closeModal();
+      }
+    }, true);
   }
 
   buildHotbar(items, getCount) {

@@ -161,6 +161,11 @@ function buildHouse(world, ox, oz, w, d) {
   return { ox, oz, baseY, w, d, h, doorX, npcSpawn };
 }
 
+function fillColumn(world, x, y0, y1, z, id) {
+  const lo = Math.min(y0, y1), hi = Math.max(y0, y1);
+  for (let y = lo; y <= hi; y++) world.setBlock(x, y, z, id, { persist: false });
+}
+
 function avgHeight(world, ox, oz, w, d) {
   let max = 0;
   for (let x = 0; x < w; x++) for (let z = 0; z < d; z++) {

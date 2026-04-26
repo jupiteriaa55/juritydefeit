@@ -9,7 +9,7 @@ import * as B from './blocks.js';
 
 const TILE = 16;            // texture pixel size
 const COLS = 8;              // tiles per row in atlas
-const ROWS = 4;              // tiles per col in atlas
+const ROWS = 8;              // tiles per col in atlas (expanded)
 const ATLAS_W = COLS * TILE;
 const ATLAS_H = ROWS * TILE;
 
@@ -63,10 +63,11 @@ class Tile {
     for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) this.set(x, y, rgb);
   }
   noise(rng, base, intensity = 0.12) {
+    const baseHex = (typeof base === 'number') ? base : rgbToHex(base);
     for (let y = 0; y < TILE; y++) {
       for (let x = 0; x < TILE; x++) {
         const n = (rng() - 0.5) * 2 * intensity;
-        this.set(x, y, shadeColor(rgbToHex(base), n));
+        this.set(x, y, shadeColor(baseHex, n));
       }
     }
   }
@@ -397,6 +398,176 @@ function tPath(seed) {
   return t;
 }
 
+function tOre(seed, oreColor, base = 0x8a8a8a) {
+  const t = tStone(seed);
+  const r = rng(seed ^ 0x5a5a);
+  // sprinkle ore clusters
+  for (let i = 0; i < 8; i++) {
+    const x = Math.floor(r() * (TILE - 2));
+    const y = Math.floor(r() * (TILE - 2));
+    const shape = [[0,0],[1,0],[0,1],[1,1]];
+    for (const [dx, dy] of shape) {
+      if (r() > 0.3) t.set(x + dx, y + dy, hex(oreColor));
+    }
+  }
+  return t;
+}
+
+function tSnow(seed) {
+  const t = new Tile();
+  const r = rng(seed);
+  const base = 0xeef4ff;
+  t.noise(r, base, 0.04);
+  for (let i = 0; i < 12; i++) {
+    const x = Math.floor(r() * TILE), y = Math.floor(r() * TILE);
+    t.set(x, y, hex(0xffffff));
+  }
+  return t;
+}
+
+function tIce(seed) {
+  const t = new Tile();
+  const r = rng(seed);
+  const base = 0x9fcaff;
+  t.noise(r, base, 0.06);
+  for (let i = 0; i < 10; i++) {
+    const x = Math.floor(r() * TILE), y = Math.floor(r() * TILE);
+    t.set(x, y, hex(0xd8eaff));
+  }
+  // crack lines
+  for (let i = 0; i < 3; i++) {
+    let x = Math.floor(r() * TILE), y = Math.floor(r() * TILE);
+    for (let s = 0; s < 6; s++) {
+      t.set(x, y, hex(0x6da6e8));
+      x += r() > 0.5 ? 1 : 0; y += r() > 0.5 ? 1 : 0;
+    }
+  }
+  return t;
+}
+
+function tGravel(seed) {
+  const t = new Tile();
+  const r = rng(seed);
+  const base = 0x808078;
+  t.noise(r, base, 0.10);
+  for (let i = 0; i < 24; i++) {
+    const x = Math.floor(r() * TILE), y = Math.floor(r() * TILE);
+    const c = r() > 0.5 ? 0x9c9c94 : 0x5a5a52;
+    t.set(x, y, hex(c));
+  }
+  return t;
+}
+
+function tBedrock(seed) {
+  const t = new Tile();
+  const r = rng(seed);
+  const base = 0x303030;
+  t.noise(r, base, 0.16);
+  for (let i = 0; i < 14; i++) {
+    const x = Math.floor(r() * TILE), y = Math.floor(r() * TILE);
+    const c = r() > 0.5 ? 0x101010 : 0x484848;
+    t.set(x, y, hex(c));
+  }
+  return t;
+}
+
+function tObsidian(seed) {
+  const t = new Tile();
+  const r = rng(seed);
+  const base = 0x1a1230;
+  t.noise(r, base, 0.10);
+  for (let i = 0; i < 10; i++) {
+    const x = Math.floor(r() * TILE), y = Math.floor(r() * TILE);
+    t.set(x, y, hex(0x6a4ab8));
+  }
+  return t;
+}
+
+function tCactusTop(seed) {
+  const t = new Tile();
+  const r = rng(seed);
+  const base = 0x3d8a2a;
+  t.noise(r, base, 0.06);
+  // ridges
+  for (let y of [3, 7, 11]) for (let x = 0; x < TILE; x++) t.set(x, y, hex(0x265919));
+  // spines
+  for (let i = 0; i < 8; i++) {
+    const x = Math.floor(r() * TILE), y = Math.floor(r() * TILE);
+    t.set(x, y, hex(0xc7e7a8));
+  }
+  return t;
+}
+
+function tCactusSide(seed) {
+  const t = new Tile();
+  const r = rng(seed);
+  const base = 0x4f9a2a;
+  t.noise(r, base, 0.05);
+  // vertical ridges
+  for (let x of [2, 7, 13]) for (let y = 0; y < TILE; y++) t.set(x, y, hex(0x265919));
+  for (let i = 0; i < 14; i++) {
+    const x = Math.floor(r() * TILE), y = Math.floor(r() * TILE);
+    if (r() > 0.5) t.set(x, y, hex(0xc7e7a8));
+  }
+  return t;
+}
+
+function tFlower(seed, petalColor) {
+  const t = new Tile();
+  // mostly transparent
+  for (let i = 3; i < t.data.length; i += 4) t.data[i] = 0;
+  // stem
+  const stemX = 7;
+  for (let y = 7; y < 14; y++) t.set(stemX, y, hex(0x2a6b1a));
+  for (let y = 9; y < 13; y++) t.set(stemX + 1, y, hex(0x265919));
+  // leaf
+  t.set(stemX - 1, 11, hex(0x4f9a2a));
+  t.set(stemX + 2, 12, hex(0x4f9a2a));
+  // petals (3x3 cluster around top)
+  const cx = 7, cy = 5;
+  const petalShape = [[cx-1,cy-1],[cx,cy-1],[cx+1,cy-1],[cx-1,cy],[cx+1,cy],[cx-1,cy+1],[cx,cy+1],[cx+1,cy+1]];
+  for (const [px, py] of petalShape) t.set(px, py, hex(petalColor));
+  // center
+  t.set(cx, cy, hex(0xffd84a));
+  return t;
+}
+
+function tTallGrass(seed) {
+  const t = new Tile();
+  for (let i = 3; i < t.data.length; i += 4) t.data[i] = 0;
+  const r = rng(seed);
+  const c1 = 0x4f9a2a, c2 = 0x6dbf3a, c3 = 0x356b1d;
+  for (let x = 0; x < TILE; x++) {
+    if (r() > 0.6) {
+      const top = 4 + Math.floor(r() * 4);
+      for (let y = top; y < TILE; y++) {
+        const c = r() > 0.5 ? c1 : (r() > 0.4 ? c2 : c3);
+        t.set(x, y, hex(c));
+      }
+    }
+  }
+  return t;
+}
+
+function tTorch() {
+  const t = new Tile();
+  for (let i = 3; i < t.data.length; i += 4) t.data[i] = 0;
+  // stick
+  for (let y = 7; y < 16; y++) {
+    t.set(7, y, hex(0x6b4a25));
+    t.set(8, y, hex(0x8a6135));
+  }
+  // flame top
+  const flame = [
+    [7,3,0xfff0a0],[8,3,0xfff0a0],
+    [6,4,0xffd35a],[7,4,0xffeea0],[8,4,0xffeea0],[9,4,0xffd35a],
+    [6,5,0xff9a2a],[7,5,0xffd35a],[8,5,0xffd35a],[9,5,0xff9a2a],
+    [7,6,0xff9a2a],[8,6,0xff9a2a]
+  ];
+  for (const [x, y, c] of flame) t.set(x, y, hex(c));
+  return t;
+}
+
 // Atlas slot map: blockId -> { top, side, bottom } each is index in atlas (col,row)
 const SLOTS = {};
 let nextSlot = 0;
@@ -424,6 +595,30 @@ const sWire = add(tWire());
 const sButton = add(tButton());
 const sRoof = add(tRoof(115));
 const sPath = add(tPath(116));
+const sCoal    = add(tOre(120, 0x222222));
+const sIron    = add(tOre(121, 0xd6a981));
+const sGold    = add(tOre(122, 0xffd84a));
+const sDiamond = add(tOre(123, 0x6ee7ff));
+const sSnow    = add(tSnow(124));
+const sIce     = add(tIce(125));
+const sGravel  = add(tGravel(126));
+const sBedrock = add(tBedrock(127));
+const sObs     = add(tObsidian(128));
+const sCactusTop = add(tCactusTop(129));
+const sCactusSide = add(tCactusSide(130));
+const sFlowerR = add(tFlower(131, 0xd6322a));
+const sFlowerY = add(tFlower(132, 0xffd84a));
+const sTallGrass = add(tTallGrass(133));
+const sTorch   = add(tTorch());
+const sSnowGrassSide = add((function() {
+  const t = tGrassSide(134);
+  // top half snow
+  for (let x = 0; x < 16; x++) for (let y = 0; y < 5; y++) {
+    const v = (Math.random() * 0.1 - 0.05);
+    t.set(x, y, [255, 255, 255]);
+  }
+  return t;
+})());
 
 SLOTS[B.GRASS]    = { top: sGrassTop, side: sGrassSide, bottom: sDirt };
 SLOTS[B.DIRT]     = { top: sDirt, side: sDirt, bottom: sDirt };
@@ -442,6 +637,21 @@ SLOTS[B.WIRE]     = { top: sWire, side: sWire, bottom: sWire };
 SLOTS[B.BUTTON]   = { top: sButton, side: sButton, bottom: sButton };
 SLOTS[B.ROOF]     = { top: sRoof, side: sRoof, bottom: sRoof };
 SLOTS[B.PATH]     = { top: sPath, side: sPath, bottom: sPath };
+SLOTS[B.COAL_ORE]    = { top: sCoal, side: sCoal, bottom: sCoal };
+SLOTS[B.IRON_ORE]    = { top: sIron, side: sIron, bottom: sIron };
+SLOTS[B.GOLD_ORE]    = { top: sGold, side: sGold, bottom: sGold };
+SLOTS[B.DIAMOND_ORE] = { top: sDiamond, side: sDiamond, bottom: sDiamond };
+SLOTS[B.SNOW]        = { top: sSnow, side: sSnow, bottom: sSnow };
+SLOTS[B.ICE]         = { top: sIce, side: sIce, bottom: sIce };
+SLOTS[B.GRAVEL]      = { top: sGravel, side: sGravel, bottom: sGravel };
+SLOTS[B.BEDROCK]     = { top: sBedrock, side: sBedrock, bottom: sBedrock };
+SLOTS[B.OBSIDIAN]    = { top: sObs, side: sObs, bottom: sObs };
+SLOTS[B.CACTUS]      = { top: sCactusTop, side: sCactusSide, bottom: sCactusTop };
+SLOTS[B.FLOWER_RED]  = { top: sFlowerR, side: sFlowerR, bottom: sFlowerR };
+SLOTS[B.FLOWER_YELLOW] = { top: sFlowerY, side: sFlowerY, bottom: sFlowerY };
+SLOTS[B.TALL_GRASS]  = { top: sTallGrass, side: sTallGrass, bottom: sTallGrass };
+SLOTS[B.TORCH]       = { top: sTorch, side: sTorch, bottom: sTorch };
+SLOTS[B.SNOW_GRASS]  = { top: sSnow, side: sSnowGrassSide, bottom: sDirt };
 
 // Compose atlas DataTexture
 const atlas = new Uint8Array(ATLAS_W * ATLAS_H * 4);
