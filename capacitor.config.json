@@ -1,0 +1,11 @@
+{
+  "appId": "ai.devin.merrygravedigger",
+  "appName": "Весёлый Могильщик",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

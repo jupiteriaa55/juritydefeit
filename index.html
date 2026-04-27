@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#1c2a1f" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Весёлый Могильщик</title>
+    <style>
+      :root { --bg:#0d1410; --panel:#1c2a1f; --panel2:#26392a; --border:#3a5a40; --text:#e8efe6; --muted:#9bb39d; --accent:#ffce4d; --good:#7ad07f; --bad:#e56b6b; }
+      *,*::before,*::after { box-sizing: border-box; }
+      html, body { margin:0; padding:0; height:100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow:hidden; -webkit-tap-highlight-color: transparent; touch-action: none; user-select:none; -webkit-user-select:none; }
+      #app { position: fixed; inset: 0; }
+      canvas { display:block; width:100%; height:100%; }
+      #ui { position:absolute; inset:0; pointer-events:none; }
+      #ui > * { pointer-events:auto; }
+      .panel { background: rgba(28,42,31,0.92); border:1px solid var(--border); border-radius:10px; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+      .top-bar { position:absolute; top:8px; left:8px; right:8px; display:flex; gap:8px; flex-wrap:wrap; padding:8px 10px; align-items:center; }
+      .top-bar .stat { display:flex; gap:6px; align-items:center; padding:4px 10px; background: rgba(13,20,16,.6); border:1px solid var(--border); border-radius:8px; font-size:14px; }
+      .top-bar .stat .label { color: var(--muted); font-size:12px; }
+      .top-bar .spacer { flex:1; }
+      .btn { background: var(--panel2); color: var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-size:14px; cursor:pointer; transition: background .12s, transform .06s; }
+      .btn:hover { background:#324d37; }
+      .btn:active { transform: translateY(1px); }
+      .btn.primary { background: var(--accent); color:#1a1300; border-color:#caa23a; font-weight:600; }
+      .btn.primary:hover { background:#ffd96a; }
+      .btn.danger { background:#5a2a2a; }
+      .btn.icon { width:42px; height:42px; padding:0; font-size:22px; line-height:1; display:flex; align-items:center; justify-content:center; }
+
+      .order { position:absolute; left:8px; top:64px; width: 280px; max-width: 40vw; padding: 12px; }
+      .order h3 { margin:0 0 6px 0; font-size:15px; color: var(--accent); }
+      .order .row { display:flex; justify-content: space-between; font-size:13px; margin: 3px 0; color: var(--text); }
+      .order .row .k { color: var(--muted); }
+      .order .req { font-size:12px; color: var(--muted); margin: 6px 0 8px; line-height:1.35; }
+      .order .actions { display:flex; gap:6px; margin-top:8px; }
+
+      .build { position:absolute; right:8px; top:64px; bottom:80px; width:230px; max-width: 42vw; padding: 10px; display:flex; flex-direction:column; gap:8px; overflow-y:auto; }
+      .build h3 { margin:0; font-size:14px; color: var(--accent); }
+      .tool-grid { display:grid; grid-template-columns: 1fr 1fr; gap:6px; }
+      .tool { background: rgba(13,20,16,.5); border:1px solid var(--border); border-radius:8px; padding:8px 6px; cursor:pointer; font-size:12px; text-align:center; line-height:1.2; }
+      .tool .name { display:block; font-weight:600; }
+      .tool .price { color: var(--muted); font-size:11px; }
+      .tool.active { background: var(--accent); color:#1a1300; border-color:#caa23a; }
+      .tool.active .price { color:#3a2a00; }
+      .tool[disabled] { opacity:.45; cursor:not-allowed; }
+
+      .bottom-right { position:absolute; right:8px; bottom:8px; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; align-items:flex-end; }
+      .zoom-cluster { display:flex; flex-direction:column; gap:6px; }
+
+      .toast-host { position:absolute; left:50%; top:60px; transform:translateX(-50%); display:flex; flex-direction:column; gap:6px; pointer-events:none; }
+      .toast { background: rgba(28,42,31,.95); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-size:13px; color: var(--text); animation: tslide .25s ease; }
+      .toast.good { border-color:#5a8a5e; color:#cdebcf; }
+      .toast.bad { border-color:#7a4040; color:#ffd0d0; }
+      @keyframes tslide { from { opacity:0; transform: translateY(-6px); } to { opacity:1; transform:none; } }
+
+      .modal-host { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,.55); z-index: 10; }
+      .modal-host.open { display:flex; }
+      .modal { width: min(420px, 90vw); padding: 18px; }
+      .modal h2 { margin:0 0 8px; color: var(--accent); font-size:18px; }
+      .modal p { color: var(--muted); font-size:13px; line-height:1.45; margin: 4px 0; }
+      .modal input[type=text] { width:100%; padding: 8px 10px; border-radius:8px; border:1px solid var(--border); background:#0d1410; color:var(--text); font-size:14px; margin-top: 6px; }
+      .modal .actions { display:flex; gap:8px; justify-content:flex-end; margin-top: 12px; }
+
+      .help { position:absolute; left:8px; bottom:8px; max-width:300px; padding:8px 12px; font-size:12px; color: var(--muted); }
+      .help b { color: var(--text); }
+
+      @media (max-width: 720px) {
+        .order { width: 240px; padding:10px; }
+        .build { width: 180px; padding: 8px; }
+        .help { display:none; }
+        .top-bar .stat { font-size:12px; padding:3px 8px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game"></canvas>
+      <div id="ui">
+        <div class="top-bar panel">
+          <div class="stat"><span class="label">День</span><span id="stat-day">1</span></div>
+          <div class="stat"><span class="label">Деньги</span><span id="stat-money">500</span> ⛀</div>
+          <div class="stat"><span class="label">Репутация</span><span id="stat-rep">0</span></div>
+          <div class="spacer"></div>
+          <button class="btn" id="btn-end-day" title="Завершить день">Завершить день ▶</button>
+        </div>
+
+        <div id="order-panel" class="order panel">
+          <h3 id="order-title">Заказ</h3>
+          <div class="req" id="order-desc">Нет активного заказа</div>
+          <div class="row"><span class="k">Имя усопшего</span><span id="order-name">—</span></div>
+          <div class="row"><span class="k">Желаемый стиль</span><span id="order-style">—</span></div>
+          <div class="row"><span class="k">Бюджет (макс)</span><span id="order-budget">—</span></div>
+          <div class="row"><span class="k">Дней осталось</span><span id="order-days">—</span></div>
+          <div class="row"><span class="k">Затрачено</span><span id="order-spent">0</span></div>
+          <div class="row"><span class="k">Стиль участка</span><span id="order-current-style">0</span></div>
+          <div class="actions">
+            <button class="btn" id="btn-new-order" title="Принять новый заказ">Новый заказ</button>
+            <button class="btn primary" id="btn-finish-order" title="Сдать заказ">Сдать</button>
+          </div>
+        </div>
+
+        <div id="build-panel" class="build panel">
+          <h3>Инструменты</h3>
+          <div class="tool-grid" id="tool-grid"></div>
+        </div>
+
+        <div class="bottom-right">
+          <div class="zoom-cluster">
+            <button class="btn icon" id="btn-zoom-in" title="Приблизить">+</button>
+            <button class="btn icon" id="btn-zoom-out" title="Отдалить">−</button>
+          </div>
+        </div>
+
+        <div class="help panel">
+          <b>Управление:</b> ЛКМ по клетке — действие выбранным инструментом. Перетаскивание — камера. Колесо/щипок — зум. <b>+/−</b> — зум. <b>D</b> — позвать собаку. <b>Esc</b> — снять инструмент.
+        </div>
+
+        <div id="toast-host" class="toast-host"></div>
+
+        <div id="modal-host" class="modal-host">
+          <div id="modal" class="modal panel"></div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
