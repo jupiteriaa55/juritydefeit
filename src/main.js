@@ -16,7 +16,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.setClearColor(0x9fcde6); // мультяшное светло-голубое небо
+renderer.setClearColor(0xc8e8f0); // мультяшное светло-голубое небо (как в оригинале 2010)
 
 function resizeRenderer() {
   const w = canvas.clientWidth || window.innerWidth;
@@ -27,12 +27,13 @@ window.addEventListener('resize', resizeRenderer);
 resizeRenderer();
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xa8d6e8, 90, 260);
+scene.fog = new THREE.Fog(0xc8e8f0, 110, 290);
 
 // освещение «мультяшное»
-const hemi = new THREE.HemisphereLight(0xffffff, 0x6c8a55, 0.85);
+// Яркий мультяшный «солнечный полдень» — как в оригинале 2010.
+const hemi = new THREE.HemisphereLight(0xfffbe0, 0x9cd47c, 1.05);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff2c8, 1.15);
+const sun = new THREE.DirectionalLight(0xfff5d0, 1.35);
 sun.position.set(120, 160, 80);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);

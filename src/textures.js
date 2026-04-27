@@ -8,10 +8,9 @@ import * as THREE from 'three';
 const cache = new Map();
 
 function makeCanvas(size = 512) {
-  const c = (typeof OffscreenCanvas !== 'undefined')
-    ? new OffscreenCanvas(size, size)
-    : Object.assign(document.createElement('canvas'), { width: size, height: size });
-  return c;
+  // HTMLCanvasElement используем всегда: некоторые рендереры (SwiftShader, старые
+  // драйверы) показывают чёрный квадрат, если в WebGLTexture передать OffscreenCanvas.
+  return Object.assign(document.createElement('canvas'), { width: size, height: size });
 }
 
 // PRNG (детерминирован) — текстуры одинаковые между запусками.
@@ -53,55 +52,58 @@ function drawGrassBlades(ctx, w, h, count, palette, length = 6) {
 // ---------- генераторы ----------
 
 function texGrass() {
-  const c = makeCanvas(512);
+  // 1024px для высокого разрешения картинки «под оригинал 2010».
+  const c = makeCanvas(1024);
   const ctx = c.getContext('2d');
-  // Базовый «нарисованный» зелёный с лёгким градиентом сверху-вниз.
+  // Ярко-зелёная «kelly green» основа — как на скрине Оригинала.
   const grad = ctx.createLinearGradient(0, 0, 0, c.height);
-  grad.addColorStop(0, '#8acf6c');
-  grad.addColorStop(0.5, '#6db452');
-  grad.addColorStop(1, '#549a3f');
+  grad.addColorStop(0, '#9ada6c');
+  grad.addColorStop(0.5, '#7ec449');
+  grad.addColorStop(1, '#5fa732');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, c.width, c.height);
 
-  // Пятна разных оттенков (имитация залитых акварельных пятен).
+  // Насыщенные яркие пятна — имитация «подсвеченной» лужайки.
   const patches = [
-    'rgba(120,180,90,0.45)', 'rgba(60,110,55,0.35)',
-    'rgba(180,210,140,0.30)', 'rgba(40,80,40,0.30)',
+    'rgba(160,220,90,0.55)',  'rgba(80,140,55,0.45)',
+    'rgba(200,235,140,0.40)', 'rgba(50,100,40,0.35)',
   ];
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 160; i++) {
     const x = Math.random() * c.width, y = Math.random() * c.height;
-    const r = 18 + Math.random() * 80;
+    const r = 30 + Math.random() * 140;
     const grd = ctx.createRadialGradient(x, y, 0, x, y, r);
     grd.addColorStop(0, patches[i % patches.length]);
     grd.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
   }
 
-  // Травинки — штриховой слой.
-  drawGrassBlades(ctx, c.width, c.height, 1400,
-    ['rgba(40,80,35,0.7)', 'rgba(70,120,55,0.7)', 'rgba(110,170,80,0.55)'], 7);
-  drawGrassBlades(ctx, c.width, c.height, 700,
-    ['rgba(180,220,140,0.55)', 'rgba(220,240,170,0.45)'], 5);
+  // Травинки — больше слоёв, ярче.
+  drawGrassBlades(ctx, c.width, c.height, 3000,
+    ['rgba(50,100,40,0.7)', 'rgba(85,150,65,0.7)', 'rgba(140,200,90,0.55)'], 11);
+  drawGrassBlades(ctx, c.width, c.height, 1600,
+    ['rgba(200,240,160,0.55)', 'rgba(230,250,180,0.45)'], 7);
+  drawGrassBlades(ctx, c.width, c.height, 800,
+    ['rgba(255,255,200,0.40)'], 5);
 
-  // Редкие цветочки.
-  const flowerColors = ['#ffd24a', '#ffffff', '#ff7a7a', '#c388ff', '#7adcff'];
-  for (let i = 0; i < 28; i++) {
+  // Редкие яркие цветочки «в траве».
+  const flowerColors = ['#ffe24a', '#ffffff', '#ff7a7a', '#c388ff', '#7adcff', '#ffaa55'];
+  for (let i = 0; i < 70; i++) {
     const x = Math.random() * c.width, y = Math.random() * c.height;
     ctx.fillStyle = flowerColors[(Math.random() * flowerColors.length) | 0];
     for (let p = 0; p < 5; p++) {
       const a = (p / 5) * Math.PI * 2;
       ctx.beginPath();
-      ctx.arc(x + Math.cos(a) * 2, y + Math.sin(a) * 2, 1.6, 0, Math.PI * 2);
+      ctx.arc(x + Math.cos(a) * 3, y + Math.sin(a) * 3, 2.4, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.fillStyle = '#fff3a8';
-    ctx.beginPath(); ctx.arc(x, y, 1.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 2.0, 0, Math.PI * 2); ctx.fill();
   }
 
-  // Лёгкая виньетка по краям (имитация тени от стилизации).
+  // Магкая виньетка — для глубины.
   const v = ctx.createRadialGradient(c.width / 2, c.height / 2, c.width * 0.3, c.width / 2, c.height / 2, c.width * 0.7);
   v.addColorStop(0, 'rgba(0,0,0,0)');
-  v.addColorStop(1, 'rgba(0,0,0,0.18)');
+  v.addColorStop(1, 'rgba(0,0,0,0.12)');
   ctx.fillStyle = v;
   ctx.fillRect(0, 0, c.width, c.height);
 
@@ -332,34 +334,55 @@ function texLeaves() {
 }
 
 function texPath() {
-  const c = makeCanvas(256);
+  // Светло-серая каменная брусчатка «в шахматку» — как в оригинале «Весёлый Могильщик» 2010.
+  const c = makeCanvas(512);
   const ctx = c.getContext('2d');
-  // Базовый светло-кремовый.
-  ctx.fillStyle = '#cdb88f';
+  // Тёмный шов-фон.
+  ctx.fillStyle = '#5c5550';
   ctx.fillRect(0, 0, c.width, c.height);
 
-  // Плитка 4×4.
   const tw = c.width / 4, th = c.height / 4;
   for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
     const x = i * tw, y = j * th;
-    const tone = 200 + Math.random() * 30 - 20;
-    ctx.fillStyle = `rgb(${tone * 0.85 | 0},${tone * 0.78 | 0},${tone * 0.6 | 0})`;
-    ctx.fillRect(x + 1, y + 1, tw - 2, th - 2);
-    // швы
-    ctx.strokeStyle = 'rgba(60,40,25,0.55)';
+    // Чередование двух светлых тонов (шахматка).
+    const isLight = ((i + j) % 2) === 0;
+    const baseR = isLight ? 230 : 205;
+    const baseG = isLight ? 225 : 200;
+    const baseB = isLight ? 215 : 190;
+    const dR = (Math.random() - 0.5) * 16;
+    const dG = (Math.random() - 0.5) * 16;
+    const dB = (Math.random() - 0.5) * 16;
+    // Плитка с лёгкими скруглёнными краями (имитация скоса).
+    const margin = 4;
+    const grd = ctx.createLinearGradient(x, y, x, y + th);
+    grd.addColorStop(0, `rgb(${baseR + 16 + dR | 0}, ${baseG + 16 + dG | 0}, ${baseB + 16 + dB | 0})`);
+    grd.addColorStop(0.5, `rgb(${baseR + dR | 0}, ${baseG + dG | 0}, ${baseB + dB | 0})`);
+    grd.addColorStop(1, `rgb(${baseR - 14 + dR | 0}, ${baseG - 14 + dG | 0}, ${baseB - 14 + dB | 0})`);
+    ctx.fillStyle = grd;
+    ctx.fillRect(x + margin, y + margin, tw - margin * 2, th - margin * 2);
+
+    // Светлая «подсветка» сверху/слева (имитация фаски).
+    ctx.strokeStyle = 'rgba(255,255,250,0.55)';
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(x + 1, y + 1, tw - 2, th - 2);
-    // подсветка верхнего/левого края
-    ctx.strokeStyle = 'rgba(255,240,210,0.45)';
-    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(x + 1, y + th - 1); ctx.lineTo(x + 1, y + 1); ctx.lineTo(x + tw - 1, y + 1);
+    ctx.moveTo(x + margin, y + th - margin);
+    ctx.lineTo(x + margin, y + margin);
+    ctx.lineTo(x + tw - margin, y + margin);
     ctx.stroke();
-    // случайные крапинки
-    for (let n = 0; n < 6; n++) {
-      const px = x + Math.random() * tw, py = y + Math.random() * th;
-      ctx.fillStyle = `rgba(80,60,40,${0.2 + Math.random() * 0.3})`;
-      ctx.beginPath(); ctx.arc(px, py, 0.6 + Math.random() * 1.2, 0, Math.PI * 2); ctx.fill();
+    // Тёмный край снизу/справа.
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.moveTo(x + tw - margin, y + margin);
+    ctx.lineTo(x + tw - margin, y + th - margin);
+    ctx.lineTo(x + margin, y + th - margin);
+    ctx.stroke();
+
+    // Кранинки на камне.
+    for (let n = 0; n < 18; n++) {
+      const px = x + margin + Math.random() * (tw - margin * 2);
+      const py = y + margin + Math.random() * (th - margin * 2);
+      ctx.fillStyle = `rgba(${50 + Math.random() * 40 | 0}, ${50 + Math.random() * 40 | 0}, ${50 + Math.random() * 40 | 0}, ${0.15 + Math.random() * 0.2})`;
+      ctx.beginPath(); ctx.arc(px, py, 0.6 + Math.random() * 1.6, 0, Math.PI * 2); ctx.fill();
     }
   }
   return c;

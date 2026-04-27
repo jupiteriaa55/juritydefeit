@@ -232,9 +232,9 @@ const MAKERS = {
 
   // ---------- ДОРОЖКИ ----------
   pathStone() {
-    // Светлая плитка «в шахматку» — как в оригинале Алавар 2010 г.
+    // Светлая каменная брусчатка «в шахматку» — как в оригинале Алавар 2010 г.
     const g = new THREE.Group();
-    const tile = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.06, 0.96), mat(0xd8d2c0, { tex: 'path' }));
+    const tile = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.06, 0.96), mat(0xeae6dc, { tex: 'path' }));
     tile.position.y = 0.04; tile.receiveShadow = true; g.add(tile);
     return g;
   },
@@ -280,38 +280,72 @@ const MAKERS = {
   // Сакура / цветущее дерево — главный визуальный элемент оригинала «Весёлый Могильщик».
   treeSakura() {
     const g = new THREE.Group();
-    g.add(cyl(0.16, 0.22, 0.85, 0x6c4022, 0, 0, 0, 10, { tex: 'wood' }));
-    // Розовые «облака» цветущей кроны
-    const pink1 = 0xff9ec7;
-    const pink2 = 0xff7fb3;
-    const pink3 = 0xffb6d3;
-    g.add(sphere(0.62, pink1, 0,    1.05, 0,    14));
-    g.add(sphere(0.50, pink2, -0.42, 1.20, 0.18, 14));
-    g.add(sphere(0.50, pink3, 0.42,  1.20, -0.18, 14));
-    g.add(sphere(0.42, pink1, 0,    1.50, 0,    14));
-    g.add(sphere(0.36, pink2, 0.30, 1.45, 0.30, 12));
-    g.add(sphere(0.36, pink3, -0.30, 1.45, -0.30, 12));
+    g.add(cyl(0.20, 0.28, 1.05, 0x5e3618, 0, 0, 0, 12, { tex: 'wood' }));
+    // Пышные «облака» цветения — крупнее и ярче-розовые.
+    const pinkA = 0xff7eb9;  // фуксия-роза
+    const pinkB = 0xff5fa3;  // насыщенная фуксия
+    const pinkC = 0xffa6ce;  // светло-розовый
+    const pinkD = 0xffd9ea;  // почти белый розовый
+    g.add(sphere(0.85, pinkA, 0,    1.30, 0,    16));
+    g.add(sphere(0.70, pinkB, -0.55, 1.45, 0.25, 16));
+    g.add(sphere(0.70, pinkC, 0.55,  1.45, -0.25, 16));
+    g.add(sphere(0.65, pinkA, 0.10, 1.65, 0.35, 14));
+    g.add(sphere(0.55, pinkB, -0.30, 1.85, 0,    14));
+    g.add(sphere(0.50, pinkD, 0.35, 1.90, -0.10, 14));
+    g.add(sphere(0.45, pinkC, -0.50, 1.30, -0.40, 12));
+    g.add(sphere(0.42, pinkA, 0.45, 1.25, 0.45,   12));
     return g;
   },
-  // Пруд: голубой плоский диск с тёмным «кантом» (вода).
+  // Пруд: круг с водой, имитация мультяшной голубой воды + блик.
   pond() {
     const g = new THREE.Group();
-    // Основа — темнее (вода глубже)
-    const base = new THREE.Mesh(new THREE.CircleGeometry(0.55, 18), mat(0x2c6e8f));
-    base.rotation.x = -Math.PI / 2;
-    base.position.y = 0.02;
-    base.receiveShadow = true;
-    g.add(base);
-    // Светлый блик сверху
-    const highlight = new THREE.Mesh(new THREE.CircleGeometry(0.42, 18), mat(0x4ea0c8));
+    // Тёмное «дно» (контур пруда)
+    const ring = new THREE.Mesh(new THREE.CircleGeometry(0.58, 24), mat(0x1f4a66));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.015;
+    ring.receiveShadow = true;
+    g.add(ring);
+    // Основная вода — насыщенный teal/cyan.
+    const water = new THREE.Mesh(new THREE.CircleGeometry(0.50, 24), mat(0x3aa8d0));
+    water.rotation.x = -Math.PI / 2;
+    water.position.y = 0.025;
+    g.add(water);
+    // Светлый блик
+    const highlight = new THREE.Mesh(new THREE.CircleGeometry(0.36, 22), mat(0x6dcae8));
     highlight.rotation.x = -Math.PI / 2;
-    highlight.position.y = 0.025;
+    highlight.position.y = 0.032;
     g.add(highlight);
-    // Маленький белый блик
-    const sparkle = new THREE.Mesh(new THREE.CircleGeometry(0.10, 12), mat(0xffffff));
+    // Маленькие белые «бликвы»
+    const sparkle = new THREE.Mesh(new THREE.CircleGeometry(0.08, 10), mat(0xffffff));
     sparkle.rotation.x = -Math.PI / 2;
-    sparkle.position.set(-0.18, 0.03, -0.10);
+    sparkle.position.set(-0.18, 0.04, -0.10);
     g.add(sparkle);
+    const sparkle2 = new THREE.Mesh(new THREE.CircleGeometry(0.05, 10), mat(0xffffff));
+    sparkle2.rotation.x = -Math.PI / 2;
+    sparkle2.position.set(0.15, 0.04, 0.18);
+    g.add(sparkle2);
+    return g;
+  },
+  // Клумба — геометрический коврик из жёлтых/белых/розовых цветов (как в оригинале).
+  flowerBed() {
+    const g = new THREE.Group();
+    // Земляная основа
+    const dirt = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.05, 0.92), mat(0x6b4628));
+    dirt.position.y = 0.025; dirt.receiveShadow = true; g.add(dirt);
+    // Раскладка 5×5 «бутонов» в шахматном порядке.
+    const colors = [0xffe24a, 0xffffff, 0xff7eb9, 0xff5b5b, 0xc388ff];
+    for (let i = 0; i < 5; i++) {
+      for (let j = 0; j < 5; j++) {
+        const x = (i - 2) * 0.18;
+        const z = (j - 2) * 0.18;
+        const c = colors[((i + j * 2) % colors.length + colors.length) % colors.length];
+        const b = sphere(0.07, c, x, 0.06, z, 8);
+        g.add(b);
+        // Жёлтая серединка
+        const center = sphere(0.025, 0xffe680, x, 0.115, z, 6);
+        g.add(center);
+      }
+    }
     return g;
   },
   bench() {
@@ -555,6 +589,7 @@ export const ITEM_DEFS = {
   flower_tulip:    { id: 'flower_tulip',    cellId: 25, cat: CAT.FLOWER, name: 'Тюльпан',      icon: '🌷', cost: 16, style: 2, maker: 'flowerTulip' },
   flower_lily:     { id: 'flower_lily',     cellId: 26, cat: CAT.FLOWER, name: 'Лилия',        icon: '⚜', cost: 24, style: 3, maker: 'flowerLily' },
   flower_rose:     { id: 'flower_rose',     cellId: 27, cat: CAT.FLOWER, name: 'Розы',         icon: '🌹', cost: 30, style: 4, maker: 'rose' },
+  flower_bed:      { id: 'flower_bed',      cellId: 28, cat: CAT.FLOWER, name: 'Клумба',       icon: '🌸', cost: 35, style: 5, maker: 'flowerBed' },
 
   // дорожки
   path_stone:    { id: 'path_stone',  cellId: 30, cat: CAT.PATH, name: 'Каменная',  icon: '▦', cost: 5,  style: 0, maker: 'pathStone' },
@@ -601,7 +636,7 @@ export const TOOLBAR_ORDER = [
   'tomb_simple', 'tomb_stone', 'tomb_marble', 'tomb_luxury', 'tomb_sarcophagus',
   // цветы
   'flower_white', 'flower_yellow', 'flower_red', 'flower_violet',
-  'flower_lavender', 'flower_tulip', 'flower_lily', 'flower_rose',
+  'flower_lavender', 'flower_tulip', 'flower_lily', 'flower_rose', 'flower_bed',
   // дорожки
   'path_stone', 'path_brick', 'path_marble',
   // декор

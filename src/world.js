@@ -57,7 +57,9 @@ export class World {
     const half = (GRID_SIZE * CELL_SIZE) / 2;
     const geo = new THREE.PlaneGeometry(GRID_SIZE, GRID_SIZE, 1, 1);
     const tex = getGroundTexture(GRID_SIZE / 6);
-    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: tex, flatShading: true });
+    // Базовый зелёный «kelly green» — гарантирует, что газон ярко-зелёный, даже
+    // если шейдер по какой-то причине не подхватил карту (свет/тон/SwiftShader и т.д.).
+    const mat = new THREE.MeshLambertMaterial({ color: 0x7ec449, map: tex });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(half - 0.5, 0, half - 0.5);
