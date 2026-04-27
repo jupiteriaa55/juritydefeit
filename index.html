@@ -7,68 +7,289 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Весёлый Могильщик</title>
     <style>
-      :root { --bg:#0d1410; --panel:#1c2a1f; --panel2:#26392a; --border:#3a5a40; --text:#e8efe6; --muted:#9bb39d; --accent:#ffce4d; --good:#7ad07f; --bad:#e56b6b; }
+      :root {
+        --bg:#0a0f0c; --panel:#1c2a1f; --panel2:#26392a; --panel3:#324d37;
+        --border:#3a5a40; --border-soft:#284a30;
+        --text:#e8efe6; --muted:#9bb39d; --accent:#ffce4d; --accent2:#ffae33;
+        --good:#7ad07f; --bad:#e56b6b;
+        --shadow: 0 6px 22px rgba(0,0,0,.45);
+      }
       *,*::before,*::after { box-sizing: border-box; }
       html, body { margin:0; padding:0; height:100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow:hidden; -webkit-tap-highlight-color: transparent; touch-action: none; user-select:none; -webkit-user-select:none; }
       #app { position: fixed; inset: 0; }
       canvas { display:block; width:100%; height:100%; }
       #ui { position:absolute; inset:0; pointer-events:none; }
       #ui > * { pointer-events:auto; }
-      .panel { background: rgba(28,42,31,0.92); border:1px solid var(--border); border-radius:10px; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
-      .top-bar { position:absolute; top:8px; left:8px; right:8px; display:flex; gap:8px; flex-wrap:wrap; padding:8px 10px; align-items:center; }
-      .top-bar .stat { display:flex; gap:6px; align-items:center; padding:4px 10px; background: rgba(13,20,16,.6); border:1px solid var(--border); border-radius:8px; font-size:14px; }
-      .top-bar .stat .label { color: var(--muted); font-size:12px; }
+
+      .panel {
+        background: linear-gradient(180deg, rgba(38,57,42,0.96), rgba(20,30,22,0.96));
+        border:1px solid var(--border);
+        border-radius:14px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(6px);
+      }
+
+      /* ---------- TOP BAR ---------- */
+      .top-bar {
+        position:absolute; top:10px; left:10px; right:10px;
+        display:flex; gap:10px; flex-wrap:wrap; padding:10px 14px;
+        align-items:center; min-height:56px;
+      }
+      .brand {
+        display:flex; align-items:center; gap:10px; font-weight:700;
+        font-family: 'Georgia', serif; color: var(--accent);
+        letter-spacing: 0.4px; font-size: 18px;
+      }
+      .brand .logo {
+        width:34px; height:34px; border-radius:50%;
+        background: radial-gradient(circle at 30% 30%, #ffd47a, #b07a18);
+        box-shadow: 0 2px 6px rgba(0,0,0,.5), inset 0 0 0 2px #1c1300;
+        display:flex; align-items:center; justify-content:center;
+        font-size: 18px;
+      }
+      .stats { display:flex; gap:8px; flex-wrap:wrap; }
+      .stat {
+        display:flex; align-items:center; gap:8px;
+        padding:6px 12px;
+        background: linear-gradient(180deg, #0e1812, #0a0f0c);
+        border:1px solid var(--border-soft);
+        border-radius:10px; font-size:14px; font-weight:600;
+        min-height: 36px;
+      }
+      .stat .ico { font-size: 16px; }
+      .stat .label { color: var(--muted); font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.5px; }
+      .stat.money { color: var(--accent); }
+      .stat.rep { color: #c8e0ff; }
       .top-bar .spacer { flex:1; }
-      .btn { background: var(--panel2); color: var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-size:14px; cursor:pointer; transition: background .12s, transform .06s; }
-      .btn:hover { background:#324d37; }
+
+      .btn {
+        background: linear-gradient(180deg, var(--panel3), var(--panel2));
+        color: var(--text);
+        border:1px solid var(--border);
+        border-radius:10px; padding:10px 14px;
+        font-size:14px; font-weight:600; cursor:pointer;
+        transition: background .12s, transform .08s, border-color .12s;
+        min-height: 40px;
+        display: inline-flex; align-items: center; gap:6px; justify-content:center;
+      }
+      .btn:hover { background: linear-gradient(180deg, #3e6244, #2a432e); border-color: var(--accent); }
       .btn:active { transform: translateY(1px); }
-      .btn.primary { background: var(--accent); color:#1a1300; border-color:#caa23a; font-weight:600; }
-      .btn.primary:hover { background:#ffd96a; }
-      .btn.danger { background:#5a2a2a; }
-      .btn.icon { width:42px; height:42px; padding:0; font-size:22px; line-height:1; display:flex; align-items:center; justify-content:center; }
+      .btn.primary {
+        background: linear-gradient(180deg, var(--accent), var(--accent2));
+        color:#1a1300; border-color:#caa23a; font-weight:700;
+        box-shadow: 0 2px 0 #b07a18, 0 4px 14px rgba(255,206,77,.3);
+      }
+      .btn.primary:hover { background: linear-gradient(180deg, #ffe27a, #ffbd45); }
+      .btn.danger { background: linear-gradient(180deg, #6b3030, #4a1c1c); border-color:#7a3a3a; }
+      .btn.icon {
+        width:48px; height:48px; padding:0; font-size:22px; line-height:1;
+      }
+      .btn.icon-small { width:40px; height:40px; font-size:18px; }
 
-      .order { position:absolute; left:8px; top:64px; width: 280px; max-width: 40vw; padding: 12px; }
-      .order h3 { margin:0 0 6px 0; font-size:15px; color: var(--accent); }
-      .order .row { display:flex; justify-content: space-between; font-size:13px; margin: 3px 0; color: var(--text); }
+      /* ---------- ORDER ---------- */
+      .order {
+        position:absolute; left:10px; top:84px;
+        width: 300px; max-width: 92vw;
+        padding: 14px;
+      }
+      .order .order-head {
+        display:flex; align-items:center; justify-content:space-between;
+        margin-bottom:10px;
+      }
+      .order h3 {
+        margin:0; font-size:16px; color: var(--accent); font-family: 'Georgia', serif;
+      }
+      .pill {
+        display:inline-flex; align-items:center; gap:4px;
+        padding: 3px 8px; border-radius:999px;
+        background: rgba(255,206,77,0.15); color: var(--accent);
+        font-size: 11px; font-weight: 700; text-transform: uppercase;
+        border:1px solid rgba(255,206,77,0.3);
+      }
+      .order .row {
+        display:flex; justify-content: space-between; align-items:center;
+        font-size:13px; padding: 5px 0;
+        border-bottom: 1px dashed var(--border-soft);
+      }
+      .order .row:last-of-type { border-bottom:none; }
       .order .row .k { color: var(--muted); }
-      .order .req { font-size:12px; color: var(--muted); margin: 6px 0 8px; line-height:1.35; }
-      .order .actions { display:flex; gap:6px; margin-top:8px; }
+      .order .row .v { font-weight:600; }
+      .order .req {
+        font-size:13px; color: var(--text); margin: 0 0 10px;
+        line-height:1.45;
+        padding: 8px 10px; background: rgba(13,20,16,.5);
+        border-left: 3px solid var(--accent); border-radius:0 8px 8px 0;
+      }
+      .order .progress-row { padding: 8px 0 4px; }
+      .progress {
+        position:relative; height: 6px; background: #0a120c; border-radius: 999px; overflow:hidden; margin-top:4px;
+      }
+      .progress > span { position:absolute; left:0; top:0; bottom:0; background: linear-gradient(90deg, var(--good), var(--accent)); border-radius: 999px; transition: width .25s; }
+      .progress.over > span { background: linear-gradient(90deg, var(--accent), var(--bad)); }
+      .order .actions { display:flex; gap:8px; margin-top:12px; }
+      .order .actions .btn { flex:1; }
 
-      .build { position:absolute; right:8px; top:64px; bottom:80px; width:230px; max-width: 42vw; padding: 10px; display:flex; flex-direction:column; gap:8px; overflow-y:auto; }
-      .build h3 { margin:0; font-size:14px; color: var(--accent); }
-      .tool-grid { display:grid; grid-template-columns: 1fr 1fr; gap:6px; }
-      .tool { background: rgba(13,20,16,.5); border:1px solid var(--border); border-radius:8px; padding:8px 6px; cursor:pointer; font-size:12px; text-align:center; line-height:1.2; }
-      .tool .name { display:block; font-weight:600; }
-      .tool .price { color: var(--muted); font-size:11px; }
-      .tool.active { background: var(--accent); color:#1a1300; border-color:#caa23a; }
+      /* ---------- BUILD PANEL ---------- */
+      .build {
+        position:absolute; right:10px; top:84px; bottom:90px;
+        width:280px; max-width: 92vw;
+        padding: 0;
+        display:flex; flex-direction:column; overflow:hidden;
+      }
+      .tabs {
+        display:flex; gap:0; padding:6px;
+        background: rgba(13,20,16,.5);
+        border-bottom: 1px solid var(--border-soft);
+        overflow-x: auto; scrollbar-width: thin;
+      }
+      .tabs::-webkit-scrollbar { height: 4px; }
+      .tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+      .tab {
+        flex: 0 0 auto; padding: 8px 12px;
+        background: transparent; color: var(--muted);
+        border: none; border-radius: 8px;
+        font-size: 13px; font-weight: 600; cursor: pointer;
+        transition: background .12s, color .12s;
+        white-space: nowrap;
+        display:flex; align-items:center; gap:6px;
+      }
+      .tab .tab-ico { font-size: 14px; }
+      .tab:hover { background: var(--panel2); color: var(--text); }
+      .tab.active { background: var(--accent); color: #1a1300; }
+      .tab-body {
+        flex:1; overflow-y:auto; padding: 10px;
+      }
+      .tab-body::-webkit-scrollbar { width: 6px; }
+      .tab-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+      .tool-grid {
+        display:grid; grid-template-columns: 1fr 1fr; gap:8px;
+      }
+      .tool {
+        background: linear-gradient(180deg, #1d2c20, #131c16);
+        border:1px solid var(--border-soft);
+        border-radius:10px; padding:10px 6px;
+        cursor:pointer; font-size:12px; text-align:center; line-height:1.2;
+        display:flex; flex-direction:column; align-items:center; gap:4px;
+        min-height: 80px;
+        transition: transform .08s, border-color .12s, background .12s;
+      }
+      .tool:hover { border-color: var(--accent); background: linear-gradient(180deg, #2a3e2e, #182218); }
+      .tool .ico {
+        font-size: 26px; line-height: 1;
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,.5));
+      }
+      .tool .name { display:block; font-weight:600; font-size:11px; }
+      .tool .price { color: var(--accent); font-size:11px; font-weight: 700; }
+      .tool.active {
+        background: linear-gradient(180deg, var(--accent), var(--accent2));
+        color:#1a1300; border-color:#caa23a;
+        box-shadow: 0 0 0 2px rgba(255,206,77,.4);
+      }
       .tool.active .price { color:#3a2a00; }
-      .tool[disabled] { opacity:.45; cursor:not-allowed; }
+      .tool[disabled] { opacity:.5; cursor:not-allowed; }
 
-      .bottom-right { position:absolute; right:8px; bottom:8px; display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; align-items:flex-end; }
+      /* ---------- BOTTOM CONTROLS ---------- */
+      .bottom-right {
+        position:absolute; right:10px; bottom:10px;
+        display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; align-items:flex-end;
+      }
       .zoom-cluster { display:flex; flex-direction:column; gap:6px; }
 
-      .toast-host { position:absolute; left:50%; top:60px; transform:translateX(-50%); display:flex; flex-direction:column; gap:6px; pointer-events:none; }
-      .toast { background: rgba(28,42,31,.95); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-size:13px; color: var(--text); animation: tslide .25s ease; }
-      .toast.good { border-color:#5a8a5e; color:#cdebcf; }
-      .toast.bad { border-color:#7a4040; color:#ffd0d0; }
+      /* ---------- TOASTS ---------- */
+      .toast-host {
+        position:absolute; left:50%; top:80px; transform:translateX(-50%);
+        display:flex; flex-direction:column; gap:6px; pointer-events:none;
+        align-items:center;
+      }
+      .toast {
+        background: rgba(28,42,31,.97);
+        border:1px solid var(--border);
+        border-radius:10px;
+        padding:10px 16px; font-size:13px; color: var(--text);
+        animation: tslide .25s ease;
+        box-shadow: var(--shadow);
+        max-width: min(420px, 90vw);
+      }
+      .toast.good { border-color:#5a8a5e; background: linear-gradient(180deg, #2c4530, #1c2a1f); }
+      .toast.bad { border-color:#7a4040; background: linear-gradient(180deg, #4a2828, #2a1818); color:#ffd0d0; }
       @keyframes tslide { from { opacity:0; transform: translateY(-6px); } to { opacity:1; transform:none; } }
 
-      .modal-host { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,.55); z-index: 10; }
+      /* ---------- MODAL ---------- */
+      .modal-host {
+        position:absolute; inset:0; display:none;
+        align-items:center; justify-content:center;
+        background: rgba(0,0,0,.6); z-index: 10;
+        backdrop-filter: blur(3px);
+      }
       .modal-host.open { display:flex; }
-      .modal { width: min(420px, 90vw); padding: 18px; }
-      .modal h2 { margin:0 0 8px; color: var(--accent); font-size:18px; }
-      .modal p { color: var(--muted); font-size:13px; line-height:1.45; margin: 4px 0; }
-      .modal input[type=text] { width:100%; padding: 8px 10px; border-radius:8px; border:1px solid var(--border); background:#0d1410; color:var(--text); font-size:14px; margin-top: 6px; }
-      .modal .actions { display:flex; gap:8px; justify-content:flex-end; margin-top: 12px; }
+      .modal {
+        width: min(440px, 92vw);
+        padding: 22px;
+      }
+      .modal h2 { margin:0 0 10px; color: var(--accent); font-size:20px; font-family:'Georgia', serif; }
+      .modal p { color: var(--text); font-size:14px; line-height:1.5; margin: 4px 0; }
+      .modal input[type=text] {
+        width:100%; padding: 10px 12px;
+        border-radius:8px; border:1px solid var(--border);
+        background:#0d1410; color:var(--text);
+        font-size:14px; margin-top: 8px;
+      }
+      .modal .actions { display:flex; gap:8px; justify-content:flex-end; margin-top: 16px; }
 
-      .help { position:absolute; left:8px; bottom:8px; max-width:300px; padding:8px 12px; font-size:12px; color: var(--muted); }
-      .help b { color: var(--text); }
+      /* ---------- HELP ---------- */
+      .help {
+        position:absolute; left:10px; bottom:10px;
+        max-width:320px; padding:10px 14px;
+        font-size:12px; color: var(--muted); line-height:1.5;
+      }
+      .help b { color: var(--accent); }
 
+      /* ---------- COLLAPSED ---------- */
+      .collapser {
+        position:absolute; z-index:5;
+        background: var(--panel);
+        border:1px solid var(--border);
+        border-radius: 8px;
+        width: 28px; height: 28px;
+        display:flex; align-items:center; justify-content:center;
+        font-size: 16px; cursor: pointer; color: var(--accent);
+      }
+      #order-collapser { left: calc(10px + 300px + 4px); top: 92px; }
+      #build-collapser { right: calc(10px + 280px + 4px); top: 92px; }
+      .panel.collapsed { display: none; }
+      .collapser.collapsed { transform: rotate(180deg); }
+
+      /* ---------- LOADING ---------- */
+      #loader {
+        position:absolute; inset:0;
+        background: radial-gradient(circle at 50% 30%, #1c2a1f, #0a0f0c 70%);
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        z-index: 100; transition: opacity .4s;
+        font-family: 'Georgia', serif;
+      }
+      #loader h1 { color: var(--accent); font-size: 32px; margin: 0; letter-spacing: 1px; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
+      #loader p { color: var(--muted); margin-top: 10px; font-size:14px; font-family: system-ui, sans-serif; }
+      #loader.hide { opacity:0; pointer-events:none; }
+
+      /* ---------- MOBILE ---------- */
       @media (max-width: 720px) {
-        .order { width: 240px; padding:10px; }
-        .build { width: 180px; padding: 8px; }
+        .order { width: 270px; padding:10px; top: 76px; }
+        .build { width: 220px; top: 76px; bottom: 88px; }
         .help { display:none; }
-        .top-bar .stat { font-size:12px; padding:3px 8px; }
+        .stat { font-size:12px; padding:4px 8px; min-height: 32px; }
+        .stat .label { display:none; }
+        .brand .logo { width: 28px; height: 28px; }
+        .brand span:not(.logo) { display:none; }
+        .top-bar { padding: 8px 10px; min-height: 50px; }
+        #order-collapser { left: calc(10px + 270px + 4px); top: 84px; }
+        #build-collapser { right: calc(10px + 220px + 4px); top: 84px; }
+        .tab { font-size: 12px; padding: 6px 8px; }
+        .tool-grid { grid-template-columns: 1fr 1fr; }
+      }
+      @media (max-width: 480px) {
+        .build { width: 180px; }
+        .tool-grid { grid-template-columns: 1fr; }
+        #build-collapser { right: calc(10px + 180px + 4px); }
       }
     </style>
   </head>
@@ -77,34 +298,55 @@
       <canvas id="game"></canvas>
       <div id="ui">
         <div class="top-bar panel">
-          <div class="stat"><span class="label">День</span><span id="stat-day">1</span></div>
-          <div class="stat"><span class="label">Деньги</span><span id="stat-money">500</span> ⛀</div>
-          <div class="stat"><span class="label">Репутация</span><span id="stat-rep">0</span></div>
+          <div class="brand">
+            <span class="logo">⚱</span>
+            <span>Весёлый Могильщик</span>
+          </div>
           <div class="spacer"></div>
-          <button class="btn" id="btn-end-day" title="Завершить день">Завершить день ▶</button>
+          <div class="stats">
+            <div class="stat"><span class="ico">📅</span><span><span class="label">День</span><br><span id="stat-day">1</span></span></div>
+            <div class="stat money"><span class="ico">⛀</span><span><span class="label">Монеты</span><br><span id="stat-money">500</span></span></div>
+            <div class="stat rep"><span class="ico">⭐</span><span><span class="label">Репутация</span><br><span id="stat-rep">0</span></span></div>
+          </div>
+          <button class="btn primary" id="btn-end-day" title="Завершить день">⏭ День</button>
         </div>
 
         <div id="order-panel" class="order panel">
-          <h3 id="order-title">Заказ</h3>
-          <div class="req" id="order-desc">Нет активного заказа</div>
-          <div class="row"><span class="k">Имя усопшего</span><span id="order-name">—</span></div>
-          <div class="row"><span class="k">Желаемый стиль</span><span id="order-style">—</span></div>
-          <div class="row"><span class="k">Бюджет (макс)</span><span id="order-budget">—</span></div>
-          <div class="row"><span class="k">Дней осталось</span><span id="order-days">—</span></div>
-          <div class="row"><span class="k">Затрачено</span><span id="order-spent">0</span></div>
-          <div class="row"><span class="k">Стиль участка</span><span id="order-current-style">0</span></div>
+          <div class="order-head">
+            <h3 id="order-title">Заказ</h3>
+            <span class="pill" id="order-level">—</span>
+          </div>
+          <div class="req" id="order-desc">Нет активного заказа. Возьмите новый.</div>
+          <div class="row"><span class="k">Усопший</span><span class="v" id="order-name">—</span></div>
+          <div class="row"><span class="k">Желаемый стиль</span><span class="v" id="order-style">—</span></div>
+          <div class="row"><span class="k">Бюджет</span><span class="v" id="order-budget">—</span></div>
+          <div class="row"><span class="k">Дней осталось</span><span class="v" id="order-days">—</span></div>
+          <div class="progress-row">
+            <div class="row" style="border:none; padding:2px 0;"><span class="k">Затрачено / макс</span><span class="v"><span id="order-spent">0</span> / <span id="order-spent-max">—</span></span></div>
+            <div class="progress" id="order-spent-bar"><span style="width:0%"></span></div>
+          </div>
+          <div class="progress-row">
+            <div class="row" style="border:none; padding:2px 0;"><span class="k">Стиль участка / нужно</span><span class="v"><span id="order-current-style">0</span> / <span id="order-min-style">—</span></span></div>
+            <div class="progress" id="order-style-bar"><span style="width:0%"></span></div>
+          </div>
           <div class="actions">
-            <button class="btn" id="btn-new-order" title="Принять новый заказ">Новый заказ</button>
-            <button class="btn primary" id="btn-finish-order" title="Сдать заказ">Сдать</button>
+            <button class="btn" id="btn-new-order">📜 Новый</button>
+            <button class="btn primary" id="btn-finish-order">✓ Сдать</button>
           </div>
         </div>
+        <button class="collapser" id="order-collapser" title="Свернуть/развернуть заказ">‹</button>
 
         <div id="build-panel" class="build panel">
-          <h3>Инструменты</h3>
-          <div class="tool-grid" id="tool-grid"></div>
+          <div class="tabs" id="tabs"></div>
+          <div class="tab-body">
+            <div class="tool-grid" id="tool-grid"></div>
+          </div>
         </div>
+        <button class="collapser" id="build-collapser" title="Свернуть/развернуть инструменты">›</button>
 
         <div class="bottom-right">
+          <button class="btn icon" id="btn-center" title="К центру кладбища">🎯</button>
+          <button class="btn icon" id="btn-dog" title="Позвать собаку (D)">🐕</button>
           <div class="zoom-cluster">
             <button class="btn icon" id="btn-zoom-in" title="Приблизить">+</button>
             <button class="btn icon" id="btn-zoom-out" title="Отдалить">−</button>
@@ -112,7 +354,8 @@
         </div>
 
         <div class="help panel">
-          <b>Управление:</b> ЛКМ по клетке — действие выбранным инструментом. Перетаскивание — камера. Колесо/щипок — зум. <b>+/−</b> — зум. <b>D</b> — позвать собаку. <b>Esc</b> — снять инструмент.
+          <b>Как играть:</b> Возьмите заказ, выкопайте могилу <b>только на специальных участках</b> (тёмные земельные секции с табличками), засыпьте, поставьте надгробие, выгравируйте имя — и сдайте. Слишком шикарно — родственники не смогут заплатить.<br>
+          <b>Управление:</b> ЛКМ — действие, drag — камера, колесо/щипок — зум, <b>D</b> — собака, <b>Esc</b> — снять инструмент.
         </div>
 
         <div id="toast-host" class="toast-host"></div>
@@ -122,6 +365,12 @@
         </div>
       </div>
     </div>
+
+    <div id="loader">
+      <h1>⚱ Весёлый Могильщик</h1>
+      <p>Готовим лопаты…</p>
+    </div>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

@@ -1,10 +1,10 @@
 // Точка входа: инициализация Three.js, мира, камеры, ввода, UI и игрового цикла.
 
 import * as THREE from 'three';
-import { World, GRID_SIZE } from './world.js';
+import { World, GRID_SIZE, PLOT } from './world.js';
 import { CameraControl } from './cameraControl.js';
 import { Player, Dog } from './characters.js';
-import { ITEM_DEFS, TOOL, CELL, defByCellId, neighborBonus } from './items.js';
+import { ITEM_DEFS, TOOL, CELL, CAT, defByCellId, neighborBonus } from './items.js';
 import { generateOrder, evaluateOrder } from './orders.js';
 import { UI } from './ui.js';
 
@@ -45,7 +45,8 @@ scene.add(sun.target);
 // ---------- World, camera, characters ----------
 const world = new World(scene);
 const cam = new CameraControl(canvas);
-cam.target.set(GRID_SIZE / 2, 0, GRID_SIZE / 2);
+const startFocus = world.getStartFocus();
+cam.target.set(startFocus.x, 0, startFocus.z);
 cam.update();
 
 const player = new Player(scene, GRID_SIZE / 2, GRID_SIZE / 2);
@@ -80,6 +81,12 @@ const ui = new UI({
   onFinishOrder: () => finishOrder(),
   onZoomIn: () => cam.zoomIn(),
   onZoomOut: () => cam.zoomOut(),
+  onCenter: () => {
+    const f = state.activeOrder && state.activeOrder.cellX != null
+      ? { x: state.activeOrder.cellX, z: state.activeOrder.cellZ }
+      : world.getStartFocus();
+    cam.target.set(f.x, 0, f.z);
+  },
 });
 
 function refreshUI() {
@@ -133,7 +140,7 @@ function finishOrder() {
   if (o.cellX == null) { ui.toast('Сначала выкопайте могилу и поставьте надгробие.', 'bad'); return; }
   const cellVal = world.get(o.cellX, o.cellZ);
   const def = defByCellId(cellVal);
-  if (!def || def.cat !== 'tomb') { ui.toast('На могиле должно быть надгробие.', 'bad'); return; }
+  if (!def || (def.cat !== CAT.TOMB && def.cat !== CAT.CROSS)) { ui.toast('На могиле должно быть надгробие или крест.', 'bad'); return; }
   if (!o.nameWritten) { ui.toast('Не написано имя на надгробии.', 'bad'); return; }
   // Стиль = базовый стиль надгробия + бонус соседей (цветы/дорожки) + кристаллы.
   const baseStyle = def.style ?? 0;
@@ -174,6 +181,10 @@ function applyToolAt(x, z) {
     if (def.tool === TOOL.DIG) {
       const cur = world.get(x, z);
       if (cur !== CELL.GRASS) { ui.toast('Здесь уже что-то есть.', 'bad'); return; }
+      if (!world.canDigAt(x, z)) {
+        ui.toast('Копать можно только на специальных участках (тёмные земельные секции).', 'bad');
+        return;
+      }
       world.set(x, z, CELL.PIT);
       // Если есть активный заказ и могила ещё не назначена — закрепляем.
       if (state.activeOrder && state.activeOrder.cellX == null) {
@@ -231,8 +242,12 @@ function applyToolAt(x, z) {
   // Размещаемый объект
   const cur = world.get(x, z);
 
-  // Надгробия требуют засыпанную могилу (если пусто — копаем+засыпаем автоматически за 0).
-  if (def.cat === 'tomb') {
+  // Надгробия и кресты — только в участке, на засыпанной могиле / земле участка.
+  if (def.cat === CAT.TOMB || def.cat === CAT.CROSS) {
+    if (!world.canDigAt(x, z)) {
+      ui.toast('Памятники ставятся только на специальных участках.', 'bad');
+      return;
+    }
     if (cur !== CELL.FILLED && cur !== CELL.PIT && cur !== CELL.GRASS) {
       ui.toast('Снесите старый объект, прежде чем ставить надгробие.', 'bad');
       return;
@@ -275,7 +290,17 @@ cam.onClick = (e) => {
 
 canvas.addEventListener('pointermove', (e) => {
   const c = cam.pickCell(e.clientX, e.clientY);
-  if (c) world.setHighlight(c.x, c.z, true);
+  if (!c) { world.setHighlight(0, 0, 0, false); return; }
+  let color = 0xffd24a; // нейтральный
+  const tool = state.tool ? ITEM_DEFS[state.tool] : null;
+  if (tool) {
+    if (tool.tool === TOOL.DIG) {
+      color = world.canDigAt(c.x, c.z) && world.get(c.x, c.z) === CELL.GRASS ? 0x6cd16c : 0xff5b5b;
+    } else if (tool.cat === CAT.TOMB || tool.cat === CAT.CROSS) {
+      color = world.canDigAt(c.x, c.z) ? 0x6cd16c : 0xff5b5b;
+    }
+  }
+  world.setHighlight(c.x, c.z, color, true);
 });
 
 // ---------- Loop ----------

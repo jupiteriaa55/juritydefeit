@@ -1,37 +1,54 @@
-// Мир кладбища: сетка GRID_SIZE×GRID_SIZE клеток.
-// Состояние клетки хранится в Uint16Array (одно число на клетку), что укладывается
-// в десятки килобайт даже для 200×200 = 40 000 клеток — этого достаточно для мобильного.
-//
-// Геометрия:
-//  • один большой газон (плоскость) рисуется одним мешем;
-//  • объекты (надгробия, цветы, дорожки и т.д.) кладутся как обычные Group/Mesh,
-//    они «дешёвые» (low-poly, без текстур), а реально на карте их обычно сотни,
-//    а не десятки тысяч, поэтому отдельные меши + frustum culling работают быстро.
+// Мир кладбища: сетка GRID_SIZE×GRID_SIZE клеток + участки (plots), внутри которых
+// разрешено копать могилы. Снаружи участков — газон с возможностью ставить
+// цветы, дорожки и декор, но не могилы.
 
 import * as THREE from 'three';
 import { CELL, ITEM_DEFS, defByCellId, buildItemMesh, buildPitMesh, buildFilledMesh } from './items.js';
-import { getGroundTexture } from './textures.js';
+import { getGroundTexture, getPlotTexture } from './textures.js';
 
 export const GRID_SIZE = 200;
 export const CELL_SIZE = 1;
+
+// Уровень участка: чем выше, тем «престижнее» зона.
+// 0 — нет участка (нельзя копать).
+// 1 — обычный, 2 — средний, 3 — богатый, 4 — VIP-склеп.
+export const PLOT = {
+  NONE: 0,
+  POOR: 1,
+  STANDARD: 2,
+  RICH: 3,
+  VIP: 4,
+};
+
+const PLOT_COLORS = {
+  1: '#cdb88f', // светлый — простой
+  2: '#b89968', // средний
+  3: '#a07a48', // тёмный богатый
+  4: '#8a5a32', // VIP — почти чёрная земля
+};
+
+function plotName(level) {
+  return { 1: 'Простой', 2: 'Стандартный', 3: 'Богатый', 4: 'VIP-склеп' }[level] || '—';
+}
 
 export class World {
   constructor(scene) {
     this.scene = scene;
     this.size = GRID_SIZE;
     this.cells = new Uint16Array(GRID_SIZE * GRID_SIZE); // 0 = трава
+    this.zones = new Uint8Array(GRID_SIZE * GRID_SIZE);  // 0 = вне участка
     this.meta = new Map(); // cellIndex -> { name?: string, orderId?: string }
     this.objects = new Map(); // cellIndex -> THREE.Object3D
+    this.plots = []; // [{x0,z0,x1,z1, level, label3d}]
     this.root = new THREE.Group();
     this.scene.add(this.root);
 
-    // Газон (большая плоская поверхность с мягким "мультяшным" цветом).
     this._buildGround();
-
-    // Контур карты (граница участка).
+    this._generatePlots();
+    this._buildPlotsVisuals();
     this._buildBorder();
+    this._buildEntranceGate();
 
-    // Хайлайт выбранной клетки.
     this.highlight = this._buildHighlight();
     this.highlight.visible = false;
     this.root.add(this.highlight);
@@ -40,7 +57,7 @@ export class World {
   _buildGround() {
     const half = (GRID_SIZE * CELL_SIZE) / 2;
     const geo = new THREE.PlaneGeometry(GRID_SIZE, GRID_SIZE, 1, 1);
-    const tex = getGroundTexture(GRID_SIZE / 4); // ≈4 клетки на повтор
+    const tex = getGroundTexture(GRID_SIZE / 6);
     const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: tex, flatShading: true });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.x = -Math.PI / 2;
@@ -48,39 +65,155 @@ export class World {
     mesh.receiveShadow = true;
     this.root.add(mesh);
     this.ground = mesh;
+  }
 
-    // Декоративные тёмные полосы (имитация участков) — лёгкая визуальная ориентация.
-    const stripeMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.06 });
-    for (let i = 0; i <= GRID_SIZE; i += 10) {
-      const lineH = new THREE.Mesh(new THREE.PlaneGeometry(GRID_SIZE, 0.05), stripeMat);
-      lineH.rotation.x = -Math.PI / 2;
-      lineH.position.set(half - 0.5, 0.01, i - 0.5);
-      this.root.add(lineH);
-      const lineV = new THREE.Mesh(new THREE.PlaneGeometry(0.05, GRID_SIZE), stripeMat);
-      lineV.rotation.x = -Math.PI / 2;
-      lineV.position.set(i - 0.5, 0.01, half - 0.5);
-      this.root.add(lineV);
+  _generatePlots() {
+    // Раскладка кладбища: центральная аллея сверху-вниз, ряды участков слева/справа.
+    // Размеры подобраны под 200×200 — игроку всегда есть, куда копать, но участки
+    // ограничены (не вся карта).
+    const cx = GRID_SIZE / 2;
+    const cz = GRID_SIZE / 2;
+    const layout = [
+      // VIP — два больших участка у входа
+      { x: cx - 22, z: cz - 38, w: 18, h: 14, level: PLOT.VIP, name: 'VIP-склеп «Юпитер»' },
+      { x: cx + 4,  z: cz - 38, w: 18, h: 14, level: PLOT.VIP, name: 'VIP-склеп «Афина»' },
+      // Богатые
+      { x: cx - 28, z: cz - 18, w: 22, h: 14, level: PLOT.RICH,     name: 'Богатый сектор «Закат»' },
+      { x: cx + 6,  z: cz - 18, w: 22, h: 14, level: PLOT.RICH,     name: 'Богатый сектор «Рассвет»' },
+      // Стандартные ряды (центральный двойной)
+      { x: cx - 28, z: cz + 2, w: 22, h: 14, level: PLOT.STANDARD, name: 'Сектор «Берёзовый»' },
+      { x: cx + 6,  z: cz + 2, w: 22, h: 14, level: PLOT.STANDARD, name: 'Сектор «Дубовый»' },
+      // Бедные
+      { x: cx - 36, z: cz + 22, w: 26, h: 14, level: PLOT.POOR, name: 'Простой сектор' },
+      { x: cx + 10, z: cz + 22, w: 26, h: 14, level: PLOT.POOR, name: 'Сектор «Туман»' },
+    ];
+
+    for (const p of layout) {
+      const x0 = Math.max(2, Math.floor(p.x));
+      const z0 = Math.max(2, Math.floor(p.z));
+      const x1 = Math.min(GRID_SIZE - 3, x0 + p.w - 1);
+      const z1 = Math.min(GRID_SIZE - 3, z0 + p.h - 1);
+      const plot = { x0, z0, x1, z1, level: p.level, name: p.name };
+      this.plots.push(plot);
+      for (let z = z0; z <= z1; z++) {
+        for (let x = x0; x <= x1; x++) {
+          this.zones[z * GRID_SIZE + x] = p.level;
+        }
+      }
     }
+  }
+
+  _buildPlotsVisuals() {
+    // Для каждого участка рисуем «вспаханный» прямоугольник чуть выше газона.
+    for (const p of this.plots) {
+      const w = (p.x1 - p.x0 + 1);
+      const h = (p.z1 - p.z0 + 1);
+      const tex = getPlotTexture(Math.max(2, w / 4));
+      const mat = new THREE.MeshLambertMaterial({
+        color: PLOT_COLORS[p.level] || '#a07a48',
+        map: tex,
+        flatShading: true,
+      });
+      const geo = new THREE.PlaneGeometry(w, h);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(p.x0 + w / 2 - 0.5, 0.005, p.z0 + h / 2 - 0.5);
+      mesh.receiveShadow = true;
+      this.root.add(mesh);
+
+      // Контур из тёмных «брёвнышек» по краям участка.
+      const border = this._buildPlotBorder(p);
+      this.root.add(border);
+
+      // Лейбл-табличка с названием участка.
+      const label = this._buildPlotLabel(p);
+      this.root.add(label);
+    }
+  }
+
+  _buildPlotBorder(p) {
+    const g = new THREE.Group();
+    const w = p.x1 - p.x0 + 1, h = p.z1 - p.z0 + 1;
+    const cx = p.x0 + w / 2 - 0.5, cz = p.z0 + h / 2 - 0.5;
+    const m = new THREE.MeshLambertMaterial({ color: 0x6c4a26, flatShading: true });
+    const top = new THREE.Mesh(new THREE.BoxGeometry(w + 0.4, 0.18, 0.18), m);
+    top.position.set(cx, 0.09, cz - h / 2 - 0.1);
+    const bot = top.clone(); bot.position.set(cx, 0.09, cz + h / 2 + 0.1);
+    const left = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, h + 0.4), m);
+    left.position.set(cx - w / 2 - 0.1, 0.09, cz);
+    const right = left.clone(); right.position.set(cx + w / 2 + 0.1, 0.09, cz);
+    [top, bot, left, right].forEach(b => { b.castShadow = true; b.receiveShadow = true; g.add(b); });
+    return g;
+  }
+
+  _buildPlotLabel(p) {
+    // Маленькая табличка с названием участка над землёй, как «постовой указатель».
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 80;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#3a2a1a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#dab26a'; ctx.lineWidth = 4;
+    ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+    ctx.fillStyle = '#f5e6c8';
+    ctx.font = 'bold 22px Georgia, serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(p.name, canvas.width / 2, canvas.height / 2 - 4);
+    ctx.font = '14px Georgia, serif';
+    ctx.fillStyle = '#dab26a';
+    ctx.fillText(plotName(p.level), canvas.width / 2, canvas.height / 2 + 22);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false }));
+    sprite.scale.set(7, 2.2, 1);
+    sprite.position.set(p.x0 + (p.x1 - p.x0 + 1) / 2 - 0.5, 3.2, p.z0 - 1.5);
+    return sprite;
   }
 
   _buildBorder() {
     const half = (GRID_SIZE * CELL_SIZE) / 2;
-    const geo = new THREE.BoxGeometry(GRID_SIZE + 0.4, 0.4, 0.2);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x3a2a1a, flatShading: true });
-    const m1 = new THREE.Mesh(geo, mat); m1.position.set(half - 0.5, 0.2, -0.6); this.root.add(m1);
-    const m2 = new THREE.Mesh(geo, mat); m2.position.set(half - 0.5, 0.2, GRID_SIZE - 0.4); this.root.add(m2);
-    const geo2 = new THREE.BoxGeometry(0.2, 0.4, GRID_SIZE + 0.4);
-    const m3 = new THREE.Mesh(geo2, mat); m3.position.set(-0.6, 0.2, half - 0.5); this.root.add(m3);
-    const m4 = new THREE.Mesh(geo2, mat); m4.position.set(GRID_SIZE - 0.4, 0.2, half - 0.5); this.root.add(m4);
+    const m = new THREE.MeshLambertMaterial({ color: 0x2a1c10, flatShading: true });
+    const geo = new THREE.BoxGeometry(GRID_SIZE + 0.4, 0.5, 0.25);
+    const m1 = new THREE.Mesh(geo, m); m1.position.set(half - 0.5, 0.25, -0.6); this.root.add(m1);
+    const m2 = new THREE.Mesh(geo, m); m2.position.set(half - 0.5, 0.25, GRID_SIZE - 0.4); this.root.add(m2);
+    const geo2 = new THREE.BoxGeometry(0.25, 0.5, GRID_SIZE + 0.4);
+    const m3 = new THREE.Mesh(geo2, m); m3.position.set(-0.6, 0.25, half - 0.5); this.root.add(m3);
+    const m4 = new THREE.Mesh(geo2, m); m4.position.set(GRID_SIZE - 0.4, 0.25, half - 0.5); this.root.add(m4);
+  }
+
+  _buildEntranceGate() {
+    // Ворота сверху, у самого входа.
+    const g = new THREE.Group();
+    const irMat = new THREE.MeshLambertMaterial({ color: 0x222428, flatShading: true });
+    const stoneMat = new THREE.MeshLambertMaterial({ color: 0x9c958a, flatShading: true });
+    const goldMat = new THREE.MeshLambertMaterial({ color: 0xe6b240, flatShading: true });
+
+    // 2 каменные пилона
+    for (const dx of [-3, 3]) {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 1.5), stoneMat);
+      pillar.position.set(GRID_SIZE / 2 + dx, 2, -1.5);
+      pillar.castShadow = true;
+      g.add(pillar);
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(2, 0.4, 2), goldMat);
+      cap.position.set(GRID_SIZE / 2 + dx, 4.2, -1.5);
+      g.add(cap);
+    }
+    // Арка
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(3, 0.18, 6, 24, Math.PI), irMat);
+    arc.position.set(GRID_SIZE / 2, 4, -1.5);
+    arc.rotation.x = Math.PI / 2; arc.rotation.z = Math.PI;
+    g.add(arc);
+
+    this.root.add(g);
   }
 
   _buildHighlight() {
     const g = new THREE.Group();
     const geo = new THREE.PlaneGeometry(0.95, 0.95);
-    const mat = new THREE.MeshBasicMaterial({ color: 0xffd24a, transparent: true, opacity: 0.45 });
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffd24a, transparent: true, opacity: 0.5 });
     const m = new THREE.Mesh(geo, mat);
     m.rotation.x = -Math.PI / 2;
-    m.position.y = 0.02;
+    m.position.y = 0.04;
     g.add(m);
     return g;
   }
@@ -96,16 +229,22 @@ export class World {
     return this.cells[this.index(x, z)];
   }
 
-  setHighlight(x, z, visible = true) {
+  zoneAt(x, z) {
+    if (!this.inBounds(x, z)) return PLOT.NONE;
+    return this.zones[this.index(x, z)];
+  }
+  canDigAt(x, z) { return this.zoneAt(x, z) > 0; }
+
+  setHighlight(x, z, color = 0xffd24a, visible = true) {
     if (visible && this.inBounds(x, z)) {
       this.highlight.position.set(x, 0, z);
+      this.highlight.children[0].material.color.setHex(color);
       this.highlight.visible = true;
     } else {
       this.highlight.visible = false;
     }
   }
 
-  // Поставить клетку: itemId — id из ITEM_DEFS либо CELL.PIT/CELL.FILLED/CELL.GRASS.
   set(x, z, value, meta = null) {
     if (!this.inBounds(x, z)) return false;
     const idx = this.index(x, z);
@@ -116,7 +255,6 @@ export class World {
     }
     this.cells[idx] = value;
 
-    // Удалить предыдущий визуал.
     const old = this.objects.get(idx);
     if (old) {
       this.root.remove(old);
@@ -124,7 +262,6 @@ export class World {
       this.objects.delete(idx);
     }
 
-    // Поставить новый.
     let mesh = null;
     if (value === CELL.PIT) {
       mesh = buildPitMesh();
@@ -152,7 +289,7 @@ export class World {
     return this.meta.get(this.index(x, z)) || null;
   }
 
-  // Поиск свободной зоны рядом для собаки и т.п.
+  // Найти случайную свободную клетку участка (для собаки/кристалла).
   randomGrass(rand) {
     for (let i = 0; i < 50; i++) {
       const x = Math.floor(rand() * GRID_SIZE);
@@ -161,16 +298,11 @@ export class World {
     }
     return { x: 0, z: 0 };
   }
-}
 
-// Фолбэки на случай отсутствия мейкеров.
-function _pitFallback() {
-  const g = new THREE.Group();
-  const m = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.95), new THREE.MeshLambertMaterial({ color: 0x2a1a10 }));
-  m.position.y = -0.1; g.add(m); return g;
-}
-function _filledFallback() {
-  const g = new THREE.Group();
-  const m = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.12, 0.95), new THREE.MeshLambertMaterial({ color: 0x6b4a2c }));
-  m.position.y = 0.06; g.add(m); return g;
+  // Возвращает центр входного участка (например, VIP), куда камера фокусируется в начале.
+  getStartFocus() {
+    const p = this.plots[0];
+    if (!p) return { x: GRID_SIZE / 2, z: GRID_SIZE / 2 };
+    return { x: (p.x0 + p.x1) / 2, z: (p.z0 + p.z1) / 2 };
+  }
 }
