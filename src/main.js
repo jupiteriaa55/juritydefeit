@@ -27,7 +27,7 @@ window.addEventListener('resize', resizeRenderer);
 resizeRenderer();
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xa8d6e8, 80, 220);
+scene.fog = new THREE.Fog(0xa8d6e8, 110, 320);
 
 // освещение «мультяшное»
 const hemi = new THREE.HemisphereLight(0xffffff, 0x6c8a55, 0.85);
