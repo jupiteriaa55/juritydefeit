@@ -232,8 +232,9 @@ const MAKERS = {
 
   // ---------- ДОРОЖКИ ----------
   pathStone() {
+    // Светлая плитка «в шахматку» — как в оригинале Алавар 2010 г.
     const g = new THREE.Group();
-    const tile = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.06, 0.96), mat(0xc8b89a, { tex: 'path' }));
+    const tile = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.06, 0.96), mat(0xd8d2c0, { tex: 'path' }));
     tile.position.y = 0.04; tile.receiveShadow = true; g.add(tile);
     return g;
   },
@@ -274,6 +275,43 @@ const MAKERS = {
     g.add(sphere(0.30, 0x4f8a3a, -0.10, 0.04, 0, 10, { tex: 'leaves' }));
     g.add(sphere(0.25, 0x6ba34f, 0.15, 0.08, 0.10, 10, { tex: 'leaves' }));
     g.add(sphere(0.20, 0x4f8a3a, 0.05, 0.16, -0.15, 10, { tex: 'leaves' }));
+    return g;
+  },
+  // Сакура / цветущее дерево — главный визуальный элемент оригинала «Весёлый Могильщик».
+  treeSakura() {
+    const g = new THREE.Group();
+    g.add(cyl(0.16, 0.22, 0.85, 0x6c4022, 0, 0, 0, 10, { tex: 'wood' }));
+    // Розовые «облака» цветущей кроны
+    const pink1 = 0xff9ec7;
+    const pink2 = 0xff7fb3;
+    const pink3 = 0xffb6d3;
+    g.add(sphere(0.62, pink1, 0,    1.05, 0,    14));
+    g.add(sphere(0.50, pink2, -0.42, 1.20, 0.18, 14));
+    g.add(sphere(0.50, pink3, 0.42,  1.20, -0.18, 14));
+    g.add(sphere(0.42, pink1, 0,    1.50, 0,    14));
+    g.add(sphere(0.36, pink2, 0.30, 1.45, 0.30, 12));
+    g.add(sphere(0.36, pink3, -0.30, 1.45, -0.30, 12));
+    return g;
+  },
+  // Пруд: голубой плоский диск с тёмным «кантом» (вода).
+  pond() {
+    const g = new THREE.Group();
+    // Основа — темнее (вода глубже)
+    const base = new THREE.Mesh(new THREE.CircleGeometry(0.55, 18), mat(0x2c6e8f));
+    base.rotation.x = -Math.PI / 2;
+    base.position.y = 0.02;
+    base.receiveShadow = true;
+    g.add(base);
+    // Светлый блик сверху
+    const highlight = new THREE.Mesh(new THREE.CircleGeometry(0.42, 18), mat(0x4ea0c8));
+    highlight.rotation.x = -Math.PI / 2;
+    highlight.position.y = 0.025;
+    g.add(highlight);
+    // Маленький белый блик
+    const sparkle = new THREE.Mesh(new THREE.CircleGeometry(0.10, 12), mat(0xffffff));
+    sparkle.rotation.x = -Math.PI / 2;
+    sparkle.position.set(-0.18, 0.03, -0.10);
+    g.add(sparkle);
     return g;
   },
   bench() {
@@ -536,9 +574,11 @@ export const ITEM_DEFS = {
   chapel:       { id: 'chapel',       cellId: 51, cat: CAT.DECO, name: 'Часовня (3×3)', icon: '⛪', cost: 1500, style: 35, multi: 3, maker: 'chapel' },
 
   // природа
+  tree_sakura:{ id: 'tree_sakura',cellId: 63, cat: CAT.NATURE, name: 'Сакура',     icon: '🌸', cost: 80,  style: 4, maker: 'treeSakura' },
   tree_pine:  { id: 'tree_pine',  cellId: 60, cat: CAT.NATURE, name: 'Сосна',      icon: '🌲', cost: 25,  style: 1, maker: 'treePine' },
   tree_oak:   { id: 'tree_oak',   cellId: 61, cat: CAT.NATURE, name: 'Дуб',        icon: '🌳', cost: 60,  style: 3, maker: 'treeOak' },
   shrub:      { id: 'shrub',      cellId: 62, cat: CAT.NATURE, name: 'Куст',       icon: '🌿', cost: 14,  style: 1, maker: 'shrub' },
+  pond:       { id: 'pond',       cellId: 64, cat: CAT.NATURE, name: 'Пруд',       icon: '💧', cost: 50,  style: 3, maker: 'pond' },
 
   // кристалл (нельзя купить — даёт собака)
   crystal:    { id: 'crystal',    cellId: 50, cat: CAT.DECO, name: 'Кристалл',  icon: '💎', cost: 0, style: 4, maker: 'crystal', notBuyable: true },
@@ -568,7 +608,7 @@ export const TOOLBAR_ORDER = [
   'bench', 'bench_gold', 'lamp', 'candle', 'wreath',
   'fence', 'fence_stone', 'angel', 'mausoleum', 'chapel',
   // природа
-  'tree_pine', 'tree_oak', 'shrub',
+  'tree_sakura', 'tree_pine', 'tree_oak', 'shrub', 'pond',
 ];
 
 export function buildItemMesh(itemId) {

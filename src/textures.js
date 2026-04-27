@@ -57,9 +57,9 @@ function texGrass() {
   const ctx = c.getContext('2d');
   // Базовый «нарисованный» зелёный с лёгким градиентом сверху-вниз.
   const grad = ctx.createLinearGradient(0, 0, 0, c.height);
-  grad.addColorStop(0, '#74b66a');
-  grad.addColorStop(0.5, '#5e9c52');
-  grad.addColorStop(1, '#4d8743');
+  grad.addColorStop(0, '#8acf6c');
+  grad.addColorStop(0.5, '#6db452');
+  grad.addColorStop(1, '#549a3f');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, c.width, c.height);
 

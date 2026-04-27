@@ -1,26 +1,24 @@
-// Перспективная 3D-камера с видом сверху под наклоном (≈55°).
-// Объекты вдалеке уменьшаются — настоящий 3D-эффект, не плоская ортография.
+// Изометрическая ортокамера в стиле «Весёлый Могильщик» 2010 (Flash/Alawar):
+// фиксированный угол обзора (~30° наклон, 45° поворот) — настоящая isometric-проекция,
+// без перспективных искажений, объекты вдалеке такого же размера, как и рядом.
 // Управление: drag (ПКМ/ЛКМ), колесо/щипок, кнопки + и −, WASD/стрелки.
 
 import * as THREE from 'three';
 import { GRID_SIZE } from './world.js';
 
-const TILT = THREE.MathUtils.degToRad(58); // угол наклона камеры от горизонтали
-const FOV = 35; // узкий FOV → меньше искажений, больше «3D-карта Godot»
+const TILT = THREE.MathUtils.degToRad(35);  // наклон от горизонтали (≈ изометрия)
+const YAW  = THREE.MathUtils.degToRad(45);  // поворот вокруг вертикальной оси
 
 export class CameraControl {
   constructor(canvas) {
     this.canvas = canvas;
-    this.camera = new THREE.PerspectiveCamera(FOV, 1, 0.5, 600);
+    this.camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 1000);
 
-    // Целевая точка, на которую смотрит камера (центр кладбища).
     this.target = new THREE.Vector3(GRID_SIZE / 2, 0, GRID_SIZE / 2);
-    // Дистанция от target до камеры — играет роль зума.
-    this.dist = 38;
-    this.minDist = 12;
-    this.maxDist = 140;
+    this.zoom = 16;       // полувысота кадра в клетках
+    this.minZoom = 6;
+    this.maxZoom = 70;
 
-    // Состояние пана/жестов.
     this._dragStart = null;
     this._dragTarget = null;
     this._pinchPrev = null;
@@ -45,17 +43,18 @@ export class CameraControl {
       const dx = e.clientX - this._dragStart.x;
       const dy = e.clientY - this._dragStart.y;
       if (Math.abs(dx) + Math.abs(dy) > 6) this._didDrag = true;
-      // Перевод экранных пикселей в мировые координаты при перспективе:
-      // на уровне target высота кадра = 2 * dist * tan(FOV/2).
-      const h = this.canvas.clientHeight || window.innerHeight;
-      const w = this.canvas.clientWidth || window.innerWidth;
-      const worldH = 2 * this.dist * Math.tan(THREE.MathUtils.degToRad(FOV) / 2);
+      const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+      const worldH = this.zoom * 2;
       const worldW = worldH * (w / h);
+      // Учитываем поворот (yaw): экранные оси не совпадают с мировыми.
       const wx = (dx / w) * worldW;
-      // По экранной оси Y движение «вглубь» — компенсируем наклон камеры.
-      const wz = (dy / h) * worldH / Math.cos(Math.PI / 2 - TILT);
-      this.target.x = this._dragTarget.x - wx;
-      this.target.z = this._dragTarget.z - wz;
+      const wy = (dy / h) * worldH / Math.cos(Math.PI / 2 - TILT);
+      // Преобразуем экранный (wx, wy) в мировой (X, Z) поворотом обратно на YAW.
+      const cosY = Math.cos(YAW), sinY = Math.sin(YAW);
+      const moveX = -wx * cosY - wy * sinY;
+      const moveZ =  wx * sinY - wy * cosY;
+      this.target.x = this._dragTarget.x + moveX;
+      this.target.z = this._dragTarget.z + moveZ;
       this._clampTarget();
       this.update();
     });
@@ -73,10 +72,9 @@ export class CameraControl {
     this.canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
       const factor = Math.exp(e.deltaY * 0.001);
-      this.setDist(this.dist * factor);
+      this.setZoom(this.zoom * factor);
     }, { passive: false });
 
-    // Жесты — пинч.
     this._touches = new Map();
     this.canvas.addEventListener('pointerdown', (e) => { this._touches.set(e.pointerId, e); });
     this.canvas.addEventListener('pointermove', (e) => {
@@ -87,7 +85,7 @@ export class CameraControl {
         const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
         if (this._pinchPrev != null) {
           const ratio = this._pinchPrev / dist;
-          this.setDist(this.dist * ratio);
+          this.setZoom(this.zoom * ratio);
         }
         this._pinchPrev = dist;
         this._dragStart = null;
@@ -99,24 +97,26 @@ export class CameraControl {
 
     window.addEventListener('keydown', (e) => {
       this._keys.add(e.key.toLowerCase());
-      if (e.key === '+' || e.key === '=') this.setDist(this.dist * 0.85);
-      if (e.key === '-' || e.key === '_') this.setDist(this.dist * 1.15);
+      if (e.key === '+' || e.key === '=') this.setZoom(this.zoom * 0.85);
+      if (e.key === '-' || e.key === '_') this.setZoom(this.zoom * 1.15);
     });
     window.addEventListener('keyup', (e) => { this._keys.delete(e.key.toLowerCase()); });
   }
 
-  setDist(v) {
-    this.dist = Math.max(this.minDist, Math.min(this.maxDist, v));
+  setZoom(v) {
+    this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, v));
+    this._onResize();
     this.update();
   }
-  zoomIn() { this.setDist(this.dist * 0.82); }
-  zoomOut() { this.setDist(this.dist * 1.22); }
-  // Совместимость со старым API.
-  get zoom() { return this.dist; }
-  set zoom(v) { this.setDist(v); }
+  zoomIn() { this.setZoom(this.zoom * 0.85); }
+  zoomOut() { this.setZoom(this.zoom * 1.18); }
+  // Совместимость со старым API (cameraControl.dist).
+  get dist() { return this.zoom; }
+  set dist(v) { this.setZoom(v); }
+  setDist(v) { this.setZoom(v); }
 
   _clampTarget() {
-    const m = 4;
+    const m = 6;
     this.target.x = Math.max(-m, Math.min(GRID_SIZE + m, this.target.x));
     this.target.z = Math.max(-m, Math.min(GRID_SIZE + m, this.target.z));
   }
@@ -124,16 +124,24 @@ export class CameraControl {
   _onResize() {
     const w = this.canvas.clientWidth || window.innerWidth;
     const h = this.canvas.clientHeight || window.innerHeight;
-    this.camera.aspect = w / h;
+    const aspect = w / h;
+    const halfH = this.zoom;
+    const halfW = halfH * aspect;
+    this.camera.left = -halfW;
+    this.camera.right = halfW;
+    this.camera.top = halfH;
+    this.camera.bottom = -halfH;
     this.camera.updateProjectionMatrix();
   }
 
   update() {
-    // Позиция камеры: вверх и назад от target по углу TILT (от горизонтали).
-    // dist — это расстояние от камеры до target по прямой.
-    const cy = Math.sin(TILT) * this.dist;
-    const cz = Math.cos(TILT) * this.dist;
-    this.camera.position.set(this.target.x, cy, this.target.z + cz);
+    // Позиция камеры с учётом наклона TILT и поворота YAW вокруг target.
+    const dist = this.zoom * 2.4;
+    const horiz = Math.cos(TILT) * dist;
+    const cy = Math.sin(TILT) * dist;
+    const cx = Math.sin(YAW) * horiz;
+    const cz = Math.cos(YAW) * horiz;
+    this.camera.position.set(this.target.x + cx, cy, this.target.z + cz);
     this.camera.lookAt(this.target);
   }
 
@@ -144,17 +152,19 @@ export class CameraControl {
     if (this._keys.has('arrowup') || this._keys.has('w')) dz -= 1;
     if (this._keys.has('arrowdown') || this._keys.has('s')) dz += 1;
     if (dx || dz) {
-      const speed = this.dist * 0.8;
+      // Идём по экранным осям, поэтому учитываем YAW.
+      const speed = this.zoom * 1.6;
       const len = Math.hypot(dx, dz) || 1;
-      this.target.x += (dx / len) * speed * dt;
-      this.target.z += (dz / len) * speed * dt;
+      const sx = (dx / len) * speed * dt;
+      const sy = (dz / len) * speed * dt;
+      const cosY = Math.cos(YAW), sinY = Math.sin(YAW);
+      this.target.x += -sx * cosY - sy * sinY;
+      this.target.z +=  sx * sinY - sy * cosY;
       this._clampTarget();
       this.update();
     }
   }
 
-  // Вернуть мировую (x,z) клетку по экранному пикселю.
-  // Raycaster одинаково работает с ортогональной и перспективной камерой.
   pickCell(clientX, clientY) {
     const rect = this.canvas.getBoundingClientRect();
     const ndc = new THREE.Vector2(

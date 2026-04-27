@@ -27,7 +27,7 @@ window.addEventListener('resize', resizeRenderer);
 resizeRenderer();
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xa8d6e8, 110, 320);
+scene.fog = new THREE.Fog(0xa8d6e8, 90, 260);
 
 // освещение «мультяшное»
 const hemi = new THREE.HemisphereLight(0xffffff, 0x6c8a55, 0.85);
@@ -181,10 +181,6 @@ function applyToolAt(x, z) {
     if (def.tool === TOOL.DIG) {
       const cur = world.get(x, z);
       if (cur !== CELL.GRASS) { ui.toast('Здесь уже что-то есть.', 'bad'); return; }
-      if (!world.canDigAt(x, z)) {
-        ui.toast('Копать можно только на специальных участках (тёмные земельные секции).', 'bad');
-        return;
-      }
       world.set(x, z, CELL.PIT);
       // Если есть активный заказ и могила ещё не назначена — закрепляем.
       if (state.activeOrder && state.activeOrder.cellX == null) {
@@ -242,12 +238,8 @@ function applyToolAt(x, z) {
   // Размещаемый объект
   const cur = world.get(x, z);
 
-  // Надгробия и кресты — только в участке, на засыпанной могиле / земле участка.
+  // Надгробия и кресты — только на засыпанной могиле.
   if (def.cat === CAT.TOMB || def.cat === CAT.CROSS) {
-    if (!world.canDigAt(x, z)) {
-      ui.toast('Памятники ставятся только на специальных участках.', 'bad');
-      return;
-    }
     if (cur !== CELL.FILLED && cur !== CELL.PIT && cur !== CELL.GRASS) {
       ui.toast('Снесите старый объект, прежде чем ставить надгробие.', 'bad');
       return;
@@ -295,9 +287,9 @@ canvas.addEventListener('pointermove', (e) => {
   const tool = state.tool ? ITEM_DEFS[state.tool] : null;
   if (tool) {
     if (tool.tool === TOOL.DIG) {
-      color = world.canDigAt(c.x, c.z) && world.get(c.x, c.z) === CELL.GRASS ? 0x6cd16c : 0xff5b5b;
+      color = world.get(c.x, c.z) === CELL.GRASS ? 0x6cd16c : 0xff5b5b;
     } else if (tool.cat === CAT.TOMB || tool.cat === CAT.CROSS) {
-      color = world.canDigAt(c.x, c.z) ? 0x6cd16c : 0xff5b5b;
+      color = world.get(c.x, c.z) === CELL.FILLED ? 0x6cd16c : 0xff5b5b;
     }
   }
   world.setHighlight(c.x, c.z, color, true);

@@ -44,10 +44,9 @@ export class World {
     this.scene.add(this.root);
 
     this._buildGround();
-    this._generatePlots();
-    this._buildPlotsVisuals();
     this._buildBorder();
     this._buildEntranceGate();
+    this._scatterDecor();
 
     this.highlight = this._buildHighlight();
     this.highlight.visible = false;
@@ -229,11 +228,13 @@ export class World {
     return this.cells[this.index(x, z)];
   }
 
+  // Зоны больше не ограничивают копание (как в оригинале «Весёлый Могильщик» 2010 г.).
+  // Метод сохранён для совместимости и возможной подсветки уровня участка.
   zoneAt(x, z) {
     if (!this.inBounds(x, z)) return PLOT.NONE;
     return this.zones[this.index(x, z)];
   }
-  canDigAt(x, z) { return this.zoneAt(x, z) > 0; }
+  canDigAt(x, z) { return this.inBounds(x, z); }
 
   setHighlight(x, z, color = 0xffd24a, visible = true) {
     if (visible && this.inBounds(x, z)) {
@@ -299,10 +300,75 @@ export class World {
     return { x: 0, z: 0 };
   }
 
-  // Возвращает центр входного участка (например, VIP), куда камера фокусируется в начале.
+  // Камера в начале фокусируется на пруд с сакурами (как в оригинале «Весёлый Могильщик»).
   getStartFocus() {
-    const p = this.plots[0];
-    if (!p) return { x: GRID_SIZE / 2, z: GRID_SIZE / 2 };
-    return { x: (p.x0 + p.x1) / 2, z: (p.z0 + p.z1) / 2 };
+    return { x: GRID_SIZE / 2 - 12, z: GRID_SIZE / 2 - 22 };
+  }
+
+  // Декоративные деревья (включая сакуру), кусты и пруды — атмосфера оригинала.
+  _scatterDecor() {
+    const seed = 1337;
+    let s = seed;
+    const rnd = () => { s = (s * 1664525 + 1013904223) | 0; return ((s >>> 0) / 4294967296); };
+
+    const place = (x, z, kind) => {
+      if (!this.inBounds(x, z)) return;
+      const idx = this.index(x, z);
+      if (this.cells[idx] !== CELL.GRASS) return;
+      const def = ITEM_DEFS[kind];
+      if (!def) return;
+      const mesh = buildItemMesh(kind);
+      mesh.position.set(x, 0, z);
+      this.root.add(mesh);
+      this.objects.set(idx, mesh);
+      this.cells[idx] = def.cellId;
+    };
+
+    const G = GRID_SIZE;
+    const cx = G / 2, cz = G / 2;
+
+    // Главное украшение — большой пруд из тайлов воды у входа (как в оригинале «Весёлый Могильщик»).
+    const pondCx = cx - 12, pondCz = cz - 22;
+    for (let dz = -3; dz <= 3; dz++) {
+      for (let dx = -4; dx <= 4; dx++) {
+        // Эллипс
+        if ((dx * dx) / 16 + (dz * dz) / 9 <= 1) {
+          place(pondCx + dx, pondCz + dz, 'pond');
+        }
+      }
+    }
+
+    // Сакуры вокруг пруда — пышный розовый пояс.
+    const sakuraSpots = [
+      [pondCx - 6, pondCz - 1], [pondCx - 5, pondCz + 3], [pondCx - 4, pondCz - 4],
+      [pondCx + 6, pondCz + 2], [pondCx + 5, pondCz - 3], [pondCx + 4, pondCz + 4],
+      [pondCx, pondCz - 5], [pondCx - 2, pondCz + 5], [pondCx + 2, pondCz + 5],
+    ];
+    for (const [x, z] of sakuraSpots) place(x, z, 'tree_sakura');
+
+    // Сакуры и дубы по периметру кладбища.
+    const placeRandTree = (x, z) => {
+      const r = rnd();
+      const k = r < 0.45 ? 'tree_sakura' : (r < 0.75 ? 'tree_oak' : (r < 0.9 ? 'tree_pine' : 'shrub'));
+      place(x, z, k);
+    };
+    for (let i = 0; i < 70; i++) {
+      placeRandTree(3 + Math.floor(rnd() * (G - 6)), 3 + Math.floor(rnd() * 4));
+    }
+    for (let i = 0; i < 70; i++) {
+      placeRandTree(3 + Math.floor(rnd() * (G - 6)), G - 7 + Math.floor(rnd() * 4));
+    }
+    for (let i = 0; i < 60; i++) {
+      placeRandTree(3 + Math.floor(rnd() * 4), 8 + Math.floor(rnd() * (G - 16)));
+    }
+    for (let i = 0; i < 60; i++) {
+      placeRandTree(G - 7 + Math.floor(rnd() * 4), 8 + Math.floor(rnd() * (G - 16)));
+    }
+
+    // Несколько фонарей вдоль центральной оси — для атмосферы.
+    for (let z = cz - 30; z <= cz + 30; z += 12) {
+      place(cx - 8, z, 'lamp');
+      place(cx + 8, z, 'lamp');
+    }
   }
 }
