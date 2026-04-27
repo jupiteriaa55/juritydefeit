@@ -131,63 +131,90 @@
 
       /* ---------- BUILD PANEL (нижний «магазин» в стиле «Весёлый Могильщик» 2010) ---------- */
       .build {
-        position:absolute; left:50%; transform:translateX(-50%); bottom:10px;
-        width: min(960px, calc(100vw - 240px));
-        max-height: 178px;
+        position:absolute; left:50%; transform:translateX(-50%); bottom:14px;
+        width: min(1020px, calc(100vw - 240px));
+        max-height: 200px;
         padding: 0;
         display:flex; flex-direction:column; overflow:hidden;
+        background: linear-gradient(180deg, rgba(45,32,18,.96), rgba(28,20,12,.96));
+        border: 2px solid #b9892a;
+        border-radius: 18px;
+        box-shadow: 0 10px 30px rgba(0,0,0,.55), inset 0 0 0 2px rgba(255,206,77,.18);
       }
       .tabs {
-        display:flex; gap:0; padding:6px;
-        background: rgba(13,20,16,.5);
-        border-bottom: 1px solid var(--border-soft);
+        display:flex; gap:4px; padding: 8px 10px 6px;
+        background: linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,.15));
+        border-bottom: 1px solid rgba(185,137,42,.4);
         overflow-x: auto; scrollbar-width: thin;
       }
       .tabs::-webkit-scrollbar { height: 4px; }
       .tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
       .tab {
-        flex: 0 0 auto; padding: 8px 12px;
-        background: transparent; color: var(--muted);
-        border: none; border-radius: 8px;
-        font-size: 13px; font-weight: 600; cursor: pointer;
-        transition: background .12s, color .12s;
+        flex: 0 0 auto; padding: 8px 14px;
+        background: linear-gradient(180deg, #3a2a16, #2a1f10);
+        color: #ffe8b4;
+        border: 1px solid #6a4a20;
+        border-radius: 12px;
+        font-size: 13px; font-weight: 700; cursor: pointer;
+        transition: transform .1s ease, background .12s, color .12s, box-shadow .12s;
         white-space: nowrap;
         display:flex; align-items:center; gap:6px;
+        text-shadow: 0 1px 0 rgba(0,0,0,.4);
       }
-      .tab .tab-ico { font-size: 14px; }
-      .tab:hover { background: var(--panel2); color: var(--text); }
-      .tab.active { background: var(--accent); color: #1a1300; }
+      .tab .tab-ico { font-size: 16px; }
+      .tab:hover { background: linear-gradient(180deg, #4a3920, #321f10); transform: translateY(-1px); }
+      .tab.active {
+        background: linear-gradient(180deg, #ffd665, #c98a1f);
+        color: #2a1300; border-color: #ffe78a;
+        box-shadow: 0 4px 0 #6a3f0a, inset 0 1px 0 rgba(255,255,255,.5);
+      }
       .tab-body {
-        flex:1; overflow-x:auto; overflow-y:hidden; padding: 8px;
+        flex:1; overflow-x:auto; overflow-y:hidden; padding: 10px;
       }
       .tab-body::-webkit-scrollbar { height: 6px; }
       .tab-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
       .tool-grid {
-        display:flex; gap:6px; align-items:stretch;
+        display:flex; gap:8px; align-items:stretch;
       }
       .tool {
-        background: linear-gradient(180deg, #1d2c20, #131c16);
-        border:1px solid var(--border-soft);
-        border-radius:10px; padding:6px 6px 4px;
-        cursor:pointer; font-size:11px; text-align:center; line-height:1.15;
-        display:flex; flex-direction:column; align-items:center; gap:2px;
-        min-width: 76px; width: 76px;
-        transition: transform .08s, border-color .12s, background .12s;
+        background: linear-gradient(180deg, #fdf2d2, #d6b56a);
+        border: 2px solid #6a4a20;
+        border-radius: 14px; padding: 6px 6px 5px;
+        cursor: pointer; font-size: 11px; text-align: center; line-height: 1.15;
+        display: flex; flex-direction: column; align-items: center; gap: 1px;
+        min-width: 80px; width: 80px;
+        color: #2a1300;
+        transition: transform .12s ease, box-shadow .15s, filter .15s, border-color .12s;
+        box-shadow: 0 3px 0 #6a4a20, inset 0 1px 0 rgba(255,255,255,.6);
+        position: relative;
       }
-      .tool:hover { border-color: var(--accent); background: linear-gradient(180deg, #2a3e2e, #182218); }
+      .tool:hover {
+        transform: translateY(-3px) scale(1.04);
+        box-shadow: 0 6px 0 #6a4a20, inset 0 1px 0 rgba(255,255,255,.7), 0 0 0 2px rgba(255,206,77,.5);
+        border-color: #b9892a;
+      }
+      .tool:active { transform: translateY(0); box-shadow: 0 2px 0 #6a4a20; }
       .tool .ico {
-        font-size: 26px; line-height: 1;
-        filter: drop-shadow(0 1px 2px rgba(0,0,0,.5));
+        font-size: 30px; line-height: 1;
+        filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));
+        margin-top: 2px;
       }
-      .tool .name { display:block; font-weight:600; font-size:11px; }
-      .tool .price { color: var(--accent); font-size:11px; font-weight: 700; }
+      .tool .name { display:block; font-weight: 800; font-size: 11px; color: #3a2010; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .tool .price { color: #6a3f0a; font-size: 11px; font-weight: 800; }
       .tool.active {
-        background: linear-gradient(180deg, var(--accent), var(--accent2));
-        color:#1a1300; border-color:#caa23a;
-        box-shadow: 0 0 0 2px rgba(255,206,77,.4);
+        background: linear-gradient(180deg, #ffd665, #ff8a2e);
+        border-color: #c2410c;
+        box-shadow: 0 0 0 3px rgba(255,206,77,.6), 0 4px 0 #6a3f0a;
+        color: #2a1300;
+        animation: tool-pulse 1.4s ease-in-out infinite;
       }
-      .tool.active .price { color:#3a2a00; }
-      .tool[disabled] { opacity:.5; cursor:not-allowed; }
+      @keyframes tool-pulse {
+        0%, 100% { box-shadow: 0 0 0 3px rgba(255,206,77,.6), 0 4px 0 #6a3f0a; }
+        50%      { box-shadow: 0 0 0 6px rgba(255,206,77,.35), 0 4px 0 #6a3f0a; }
+      }
+      .tool.active .price { color: #3a2a00; }
+      .tool[disabled] { opacity:.55; cursor:not-allowed; filter: grayscale(.5); }
+      .tool[disabled]:hover { transform: none; box-shadow: 0 3px 0 #6a4a20, inset 0 1px 0 rgba(255,255,255,.6); }
 
       /* ---------- BOTTOM CONTROLS ---------- */
       .bottom-right {
@@ -214,6 +241,17 @@
       .toast.good { border-color:#5a8a5e; background: linear-gradient(180deg, #2c4530, #1c2a1f); }
       .toast.bad { border-color:#7a4040; background: linear-gradient(180deg, #4a2828, #2a1818); color:#ffd0d0; }
       @keyframes tslide { from { opacity:0; transform: translateY(-6px); } to { opacity:1; transform:none; } }
+
+      /* Плавное появление UI при старте игры. */
+      .panel {
+        animation: panel-in .45s cubic-bezier(.2,.9,.3,1.2) both;
+      }
+      @keyframes panel-in {
+        from { opacity: 0; transform: translateY(8px) scale(.98); }
+        to   { opacity: 1; transform: none; }
+      }
+      .build { animation-delay: .1s; }
+      .order { animation-delay: .2s; }
 
       /* ---------- MODAL ---------- */
       .modal-host {

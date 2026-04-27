@@ -183,6 +183,7 @@ function applyToolAt(x, z) {
       const cur = world.get(x, z);
       if (cur !== CELL.GRASS) { ui.toast('Здесь уже что-то есть.', 'bad'); return; }
       world.set(x, z, CELL.PIT);
+      world.spawnDigParticles(x, z);
       // Если есть активный заказ и могила ещё не назначена — закрепляем.
       if (state.activeOrder && state.activeOrder.cellX == null) {
         state.activeOrder.cellX = x; state.activeOrder.cellZ = z;
@@ -198,20 +199,30 @@ function applyToolAt(x, z) {
     } else if (def.tool === TOOL.NAME) {
       const cur = world.get(x, z);
       const tdef = defByCellId(cur);
-      if (!tdef || tdef.cat !== 'tomb') { ui.toast('Имя пишется на надгробии.', 'bad'); return; }
+      if (!tdef || tdef.cat !== 'tomb') { ui.toast('Имя пишется на надгробии — поставьте сначала памятник.', 'bad'); return; }
       const o = state.activeOrder;
       ui.modal({
-        title: 'Написать имя',
-        body: `Какое имя выгравировать на надгробии?${o ? ` (по заказу: ${o.name})` : ''}`,
+        title: 'Гравировка имени',
+        body: o ? `Имя по заказу: ${o.name}. Можно отредактировать.` : 'Какое имя выгравировать на надгробии?',
         input: true,
-        inputPlaceholder: o?.name || 'Иванов И.И.',
+        inputPlaceholder: 'Иванов Иван Иванович',
+        inputValue: o?.name || '',
         okText: 'Выгравировать',
         onOk: (text) => {
-          const value = text || o?.name || 'Без имени';
+          const value = (text || o?.name || '').trim() || 'Без имени';
           world.setMeta(x, z, { name: value });
-          if (o && o.cellX === x && o.cellZ === z && value.toLowerCase().includes(o.name.split(' ')[0].toLowerCase())) {
-            o.nameWritten = true;
-            ui.toast(`Имя выгравировано: «${value}». Заказ почти готов.`, 'good');
+          // Рисуем табличку с именем прямо на надгробии в 3D.
+          world.attachNamePlate(x, z, value);
+          if (o && o.cellX === x && o.cellZ === z) {
+            const v = value.toLowerCase();
+            const expected = o.name.toLowerCase();
+            const firstWord = expected.split(' ')[0];
+            if (v.includes(firstWord) || v === expected) {
+              o.nameWritten = true;
+              ui.toast(`Имя выгравировано: «${value}». Заказ почти готов — нажмите «Сдать».`, 'good');
+            } else {
+              ui.toast(`Имя выгравировано: «${value}», но не совпадает с заказом (${o.name}).`, 'bad');
+            }
           } else {
             ui.toast(`Имя выгравировано: «${value}».`, '');
           }
@@ -298,12 +309,16 @@ canvas.addEventListener('pointermove', (e) => {
 
 // ---------- Loop ----------
 let last = performance.now();
+let elapsed = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  elapsed += dt;
   cam.step(dt);
   player.step(dt);
   dog.step(dt, rand);
+  // Анимация декоративных объектов и партиклов мира.
+  world.animate(elapsed, dt);
   // солнце "идёт" за камерой (тени везде красивые)
   sun.position.set(cam.target.x + 60, 160, cam.target.z + 30);
   sun.target.position.copy(cam.target);

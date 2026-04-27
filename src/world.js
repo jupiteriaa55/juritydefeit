@@ -292,6 +292,143 @@ export class World {
     return this.meta.get(this.index(x, z)) || null;
   }
 
+  // Прикрепить «табличку» с выгравированным именем к надгробию (видна в 3D).
+  attachNamePlate(x, z, name) {
+    const idx = this.index(x, z);
+    const obj = this.objects.get(idx);
+    if (!obj) return;
+    // Удалим прежнюю табличку, если уже была.
+    const old = obj.getObjectByName('namePlate');
+    if (old) obj.remove(old);
+
+    // Канвас 512×128 с тёмной гравировкой по светло-серому камню.
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 128;
+    const ctx = c.getContext('2d');
+    // Камень-подложка
+    const grad = ctx.createLinearGradient(0, 0, 0, 128);
+    grad.addColorStop(0, '#f4ede0');
+    grad.addColorStop(1, '#c9bea8');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 128);
+    // Рамка
+    ctx.strokeStyle = '#5a4a3a'; ctx.lineWidth = 6;
+    ctx.strokeRect(8, 8, 496, 112);
+    ctx.strokeStyle = '#a99479'; ctx.lineWidth = 2;
+    ctx.strokeRect(14, 14, 484, 100);
+    // Имя
+    ctx.fillStyle = '#2a1c10';
+    ctx.font = 'bold 44px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Авто-уменьшение шрифта при длинном тексте.
+    let size = 44;
+    while (size > 18 && ctx.measureText(name).width > 460) {
+      size -= 2;
+      ctx.font = `bold ${size}px Georgia, serif`;
+    }
+    ctx.fillText(name, 256, 64);
+    // Лёгкие крапинки гравировки (старение)
+    for (let i = 0; i < 60; i++) {
+      ctx.fillStyle = `rgba(60,40,25,${0.05 + Math.random() * 0.12})`;
+      ctx.beginPath();
+      ctx.arc(Math.random() * 512, Math.random() * 128, 0.5 + Math.random() * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.14), mat);
+    plate.name = 'namePlate';
+    plate.position.set(0, 0.55, 0.31); // чуть впереди надгробия
+    obj.add(plate);
+    // Дублируем с обратной стороны (двусторонняя гравировка).
+    const plateBack = plate.clone();
+    plateBack.position.set(0, 0.55, -0.31);
+    plateBack.rotation.y = Math.PI;
+    obj.add(plateBack);
+  }
+
+  // Покадровая анимация мира: ветер качает сакуры/деревья, на пруду играет блик,
+  // активная клетка-выделение пульсирует — оживляет сцену.
+  animate(t, dt) {
+    if (this._animTrees) {
+      for (let i = 0; i < this._animTrees.length; i++) {
+        const a = this._animTrees[i];
+        const w = Math.sin(t * 1.6 + a.phase) * a.amp;
+        const w2 = Math.cos(t * 0.9 + a.phase * 1.3) * a.amp * 0.6;
+        a.obj.rotation.z = w;
+        a.obj.rotation.x = w2;
+      }
+    }
+    if (this._animPonds) {
+      for (let i = 0; i < this._animPonds.length; i++) {
+        const p = this._animPonds[i];
+        // Лёгкая «дышащая» рябь: блик подскакивает по высоте и слегка пульсирует.
+        const obj = p.obj;
+        const k = 1 + 0.08 * Math.sin(t * 2.0 + p.phase);
+        // Children: [ring, water, highlight, sparkle, sparkle2]
+        if (obj.children[2]) obj.children[2].scale.set(k, 1, k);
+        if (obj.children[3]) {
+          obj.children[3].position.x = -0.18 + 0.05 * Math.sin(t * 1.4 + p.phase);
+          obj.children[3].position.z = -0.10 + 0.05 * Math.cos(t * 1.7 + p.phase);
+        }
+        if (obj.children[4]) {
+          obj.children[4].position.x = 0.15 + 0.05 * Math.cos(t * 1.1 + p.phase);
+          obj.children[4].position.z = 0.18 + 0.05 * Math.sin(t * 1.8 + p.phase);
+        }
+      }
+    }
+    // Подсветка активного выбора слегка «дышит».
+    if (this.highlight && this.highlight.visible) {
+      const k = 0.85 + 0.15 * Math.sin(t * 6);
+      this.highlight.scale.set(k, 1, k);
+    }
+    // Активные партиклы (земля от копания).
+    this._stepParticles(dt);
+  }
+
+  // Простая система партиклов: при копании летят комочки земли.
+  spawnDigParticles(x, z) {
+    if (!this._particles) this._particles = [];
+    for (let i = 0; i < 14; i++) {
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(0.06, 0.06, 0.06),
+        new THREE.MeshLambertMaterial({ color: 0x6b4528 + Math.floor(Math.random() * 0x202020) })
+      );
+      m.position.set(x + (Math.random() - 0.5) * 0.4, 0.1, z + (Math.random() - 0.5) * 0.4);
+      this.root.add(m);
+      this._particles.push({
+        m,
+        vx: (Math.random() - 0.5) * 1.4,
+        vy: 1.2 + Math.random() * 1.2,
+        vz: (Math.random() - 0.5) * 1.4,
+        life: 0.9,
+      });
+    }
+  }
+  _stepParticles(dt) {
+    if (!this._particles || this._particles.length === 0) return;
+    for (let i = this._particles.length - 1; i >= 0; i--) {
+      const p = this._particles[i];
+      p.life -= dt;
+      if (p.life <= 0) {
+        this.root.remove(p.m); p.m.geometry.dispose(); p.m.material.dispose();
+        this._particles.splice(i, 1);
+        continue;
+      }
+      p.vy -= 5 * dt;
+      p.m.position.x += p.vx * dt;
+      p.m.position.y += p.vy * dt;
+      p.m.position.z += p.vz * dt;
+      p.m.rotation.x += dt * 6;
+      p.m.rotation.z += dt * 4;
+      if (p.m.position.y < 0.05) { p.m.position.y = 0.05; p.vy = 0; p.vx *= 0.5; p.vz *= 0.5; }
+    }
+  }
+
   // Найти случайную свободную клетку участка (для собаки/кристалла).
   randomGrass(rand) {
     for (let i = 0; i < 50; i++) {
@@ -313,6 +450,10 @@ export class World {
     let s = seed;
     const rnd = () => { s = (s * 1664525 + 1013904223) | 0; return ((s >>> 0) / 4294967296); };
 
+    // Списки для анимации (сакуры качаются на ветру, пруды бликуют).
+    this._animTrees = [];
+    this._animPonds = [];
+
     const place = (x, z, kind) => {
       if (!this.inBounds(x, z)) return;
       const idx = this.index(x, z);
@@ -324,6 +465,12 @@ export class World {
       this.root.add(mesh);
       this.objects.set(idx, mesh);
       this.cells[idx] = def.cellId;
+      if (kind === 'tree_sakura' || kind === 'tree_oak' || kind === 'tree_pine' || kind === 'shrub') {
+        // Случайные фазы — деревья качаются вразнобой.
+        this._animTrees.push({ obj: mesh, phase: rnd() * Math.PI * 2, amp: 0.04 + rnd() * 0.06, kind });
+      } else if (kind === 'pond') {
+        this._animPonds.push({ obj: mesh, phase: rnd() * Math.PI * 2 });
+      }
     };
 
     const G = GRID_SIZE;

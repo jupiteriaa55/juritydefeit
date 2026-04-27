@@ -183,7 +183,7 @@ export class UI {
     setTimeout(() => { t.remove(); }, 3000);
   }
 
-  modal({ title, body, input = false, inputPlaceholder = '', okText = 'OK', cancelText = 'Отмена', onOk, onCancel }) {
+  modal({ title, body, input = false, inputPlaceholder = '', inputValue = '', okText = 'OK', cancelText = 'Отмена', onOk, onCancel }) {
     const host = $('#modal-host');
     const modal = $('#modal');
     modal.innerHTML = '';
@@ -194,11 +194,12 @@ export class UI {
       inputEl = document.createElement('input');
       inputEl.type = 'text';
       inputEl.placeholder = inputPlaceholder;
+      if (inputValue) inputEl.value = inputValue;
       modal.appendChild(inputEl);
-      setTimeout(() => inputEl.focus(), 30);
+      setTimeout(() => { inputEl.focus(); inputEl.select(); }, 30);
     }
     const actions = document.createElement('div'); actions.className = 'actions';
-    const close = () => { host.classList.remove('open'); };
+    const close = () => { host.classList.remove('open'); document.removeEventListener('keydown', keyHandler); };
     if (cancelText) {
       const c = document.createElement('button');
       c.className = 'btn'; c.textContent = cancelText;
@@ -207,12 +208,19 @@ export class UI {
     }
     const ok = document.createElement('button');
     ok.className = 'btn primary'; ok.textContent = okText;
-    ok.addEventListener('click', () => {
+    const submit = () => {
       const val = inputEl ? inputEl.value.trim() : true;
       close(); onOk?.(val);
-    });
+    };
+    ok.addEventListener('click', submit);
     actions.appendChild(ok);
     modal.appendChild(actions);
     host.classList.add('open');
+    // Enter подтверждает, Esc отменяет.
+    const keyHandler = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      else if (e.key === 'Escape') { e.preventDefault(); close(); onCancel?.(); }
+    };
+    document.addEventListener('keydown', keyHandler);
   }
 }
