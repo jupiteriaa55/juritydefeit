@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#1c2a1f" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Весёлый Могильщик</title>
+    <style>
+      :root {
+        --bg:#0a0f0c; --panel:#1c2a1f; --panel2:#26392a; --panel3:#324d37;
+        --border:#3a5a40; --border-soft:#284a30;
+        --text:#e8efe6; --muted:#9bb39d; --accent:#ffce4d; --accent2:#ffae33;
+        --good:#7ad07f; --bad:#e56b6b;
+        --shadow: 0 6px 22px rgba(0,0,0,.45);
+      }
+      *,*::before,*::after { box-sizing: border-box; }
+      html, body { margin:0; padding:0; height:100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow:hidden; -webkit-tap-highlight-color: transparent; touch-action: none; user-select:none; -webkit-user-select:none; }
+      #app { position: fixed; inset: 0; }
+      canvas { display:block; width:100%; height:100%; }
+      #ui { position:absolute; inset:0; pointer-events:none; }
+      #ui > * { pointer-events:auto; }
+
+      .panel {
+        background: linear-gradient(180deg, rgba(38,57,42,0.96), rgba(20,30,22,0.96));
+        border:1px solid var(--border);
+        border-radius:14px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(6px);
+      }
+
+      /* ---------- TOP BAR ---------- */
+      .top-bar {
+        position:absolute; top:10px; left:10px; right:10px;
+        display:flex; gap:10px; flex-wrap:wrap; padding:10px 14px;
+        align-items:center; min-height:56px;
+      }
+      .brand {
+        display:flex; align-items:center; gap:10px; font-weight:700;
+        font-family: 'Georgia', serif; color: var(--accent);
+        letter-spacing: 0.4px; font-size: 18px;
+      }
+      .brand .logo {
+        width:34px; height:34px; border-radius:50%;
+        background: radial-gradient(circle at 30% 30%, #ffd47a, #b07a18);
+        box-shadow: 0 2px 6px rgba(0,0,0,.5), inset 0 0 0 2px #1c1300;
+        display:flex; align-items:center; justify-content:center;
+        font-size: 18px;
+      }
+      .stats { display:flex; gap:8px; flex-wrap:wrap; }
+      .stat {
+        display:flex; align-items:center; gap:8px;
+        padding:6px 12px;
+        background: linear-gradient(180deg, #0e1812, #0a0f0c);
+        border:1px solid var(--border-soft);
+        border-radius:10px; font-size:14px; font-weight:600;
+        min-height: 36px;
+      }
+      .stat .ico { font-size: 16px; }
+      .stat .label { color: var(--muted); font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:0.5px; }
+      .stat.money { color: var(--accent); }
+      .stat.rep { color: #c8e0ff; }
+      .top-bar .spacer { flex:1; }
+
+      .btn {
+        background: linear-gradient(180deg, var(--panel3), var(--panel2));
+        color: var(--text);
+        border:1px solid var(--border);
+        border-radius:10px; padding:10px 14px;
+        font-size:14px; font-weight:600; cursor:pointer;
+        transition: background .12s, transform .08s, border-color .12s;
+        min-height: 40px;
+        display: inline-flex; align-items: center; gap:6px; justify-content:center;
+      }
+      .btn:hover { background: linear-gradient(180deg, #3e6244, #2a432e); border-color: var(--accent); }
+      .btn:active { transform: translateY(1px); }
+      .btn.primary {
+        background: linear-gradient(180deg, var(--accent), var(--accent2));
+        color:#1a1300; border-color:#caa23a; font-weight:700;
+        box-shadow: 0 2px 0 #b07a18, 0 4px 14px rgba(255,206,77,.3);
+      }
+      .btn.primary:hover { background: linear-gradient(180deg, #ffe27a, #ffbd45); }
+      .btn.danger { background: linear-gradient(180deg, #6b3030, #4a1c1c); border-color:#7a3a3a; }
+      .btn.icon {
+        width:48px; height:48px; padding:0; font-size:22px; line-height:1;
+      }
+      .btn.icon-small { width:40px; height:40px; font-size:18px; }
+
+      /* ---------- ORDER ---------- */
+      .order {
+        position:absolute; right:10px; top:84px;
+        width: 300px; max-width: 92vw;
+        padding: 14px;
+      }
+      .order .order-head {
+        display:flex; align-items:center; justify-content:space-between;
+        margin-bottom:10px;
+      }
+      .order h3 {
+        margin:0; font-size:16px; color: var(--accent); font-family: 'Georgia', serif;
+      }
+      .pill {
+        display:inline-flex; align-items:center; gap:4px;
+        padding: 3px 8px; border-radius:999px;
+        background: rgba(255,206,77,0.15); color: var(--accent);
+        font-size: 11px; font-weight: 700; text-transform: uppercase;
+        border:1px solid rgba(255,206,77,0.3);
+      }
+      .order .row {
+        display:flex; justify-content: space-between; align-items:center;
+        font-size:13px; padding: 5px 0;
+        border-bottom: 1px dashed var(--border-soft);
+      }
+      .order .row:last-of-type { border-bottom:none; }
+      .order .row .k { color: var(--muted); }
+      .order .row .v { font-weight:600; }
+      .order .req {
+        font-size:13px; color: var(--text); margin: 0 0 10px;
+        line-height:1.45;
+        padding: 8px 10px; background: rgba(13,20,16,.5);
+        border-left: 3px solid var(--accent); border-radius:0 8px 8px 0;
+      }
+      .order .progress-row { padding: 8px 0 4px; }
+      .progress {
+        position:relative; height: 6px; background: #0a120c; border-radius: 999px; overflow:hidden; margin-top:4px;
+      }
+      .progress > span { position:absolute; left:0; top:0; bottom:0; background: linear-gradient(90deg, var(--good), var(--accent)); border-radius: 999px; transition: width .25s; }
+      .progress.over > span { background: linear-gradient(90deg, var(--accent), var(--bad)); }
+      .order .actions { display:flex; gap:8px; margin-top:12px; }
+      .order .actions .btn { flex:1; }
+
+      /* ---------- BUILD PANEL (нижний «магазин» в стиле «Весёлый Могильщик» 2010) ---------- */
+      .build {
+        position:absolute; left:50%; transform:translateX(-50%); bottom:14px;
+        width: min(1020px, calc(100vw - 240px));
+        max-height: 200px;
+        padding: 0;
+        display:flex; flex-direction:column; overflow:hidden;
+        background: linear-gradient(180deg, rgba(45,32,18,.96), rgba(28,20,12,.96));
+        border: 2px solid #b9892a;
+        border-radius: 18px;
+        box-shadow: 0 10px 30px rgba(0,0,0,.55), inset 0 0 0 2px rgba(255,206,77,.18);
+      }
+      .tabs {
+        display:flex; gap:4px; padding: 8px 10px 6px;
+        background: linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,.15));
+        border-bottom: 1px solid rgba(185,137,42,.4);
+        overflow-x: auto; scrollbar-width: thin;
+      }
+      .tabs::-webkit-scrollbar { height: 4px; }
+      .tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+      .tab {
+        flex: 0 0 auto; padding: 8px 14px;
+        background: linear-gradient(180deg, #3a2a16, #2a1f10);
+        color: #ffe8b4;
+        border: 1px solid #6a4a20;
+        border-radius: 12px;
+        font-size: 13px; font-weight: 700; cursor: pointer;
+        transition: transform .1s ease, background .12s, color .12s, box-shadow .12s;
+        white-space: nowrap;
+        display:flex; align-items:center; gap:6px;
+        text-shadow: 0 1px 0 rgba(0,0,0,.4);
+      }
+      .tab .tab-ico { font-size: 16px; }
+      .tab:hover { background: linear-gradient(180deg, #4a3920, #321f10); transform: translateY(-1px); }
+      .tab.active {
+        background: linear-gradient(180deg, #ffd665, #c98a1f);
+        color: #2a1300; border-color: #ffe78a;
+        box-shadow: 0 4px 0 #6a3f0a, inset 0 1px 0 rgba(255,255,255,.5);
+      }
+      .tab-body {
+        flex:1; overflow-x:auto; overflow-y:hidden; padding: 10px;
+      }
+      .tab-body::-webkit-scrollbar { height: 6px; }
+      .tab-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+      .tool-grid {
+        display:flex; gap:8px; align-items:stretch;
+      }
+      .tool {
+        background: linear-gradient(180deg, #fdf2d2, #d6b56a);
+        border: 2px solid #6a4a20;
+        border-radius: 14px; padding: 6px 6px 5px;
+        cursor: pointer; font-size: 11px; text-align: center; line-height: 1.15;
+        display: flex; flex-direction: column; align-items: center; gap: 1px;
+        min-width: 80px; width: 80px;
+        color: #2a1300;
+        transition: transform .12s ease, box-shadow .15s, filter .15s, border-color .12s;
+        box-shadow: 0 3px 0 #6a4a20, inset 0 1px 0 rgba(255,255,255,.6);
+        position: relative;
+      }
+      .tool:hover {
+        transform: translateY(-3px) scale(1.04);
+        box-shadow: 0 6px 0 #6a4a20, inset 0 1px 0 rgba(255,255,255,.7), 0 0 0 2px rgba(255,206,77,.5);
+        border-color: #b9892a;
+      }
+      .tool:active { transform: translateY(0); box-shadow: 0 2px 0 #6a4a20; }
+      .tool .ico {
+        font-size: 30px; line-height: 1;
+        filter: drop-shadow(0 2px 2px rgba(0,0,0,.35));
+        margin-top: 2px;
+      }
+      .tool .name { display:block; font-weight: 800; font-size: 11px; color: #3a2010; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .tool .price { color: #6a3f0a; font-size: 11px; font-weight: 800; }
+      .tool.active {
+        background: linear-gradient(180deg, #ffd665, #ff8a2e);
+        border-color: #c2410c;
+        box-shadow: 0 0 0 3px rgba(255,206,77,.6), 0 4px 0 #6a3f0a;
+        color: #2a1300;
+        animation: tool-pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes tool-pulse {
+        0%, 100% { box-shadow: 0 0 0 3px rgba(255,206,77,.6), 0 4px 0 #6a3f0a; }
+        50%      { box-shadow: 0 0 0 6px rgba(255,206,77,.35), 0 4px 0 #6a3f0a; }
+      }
+      .tool.active .price { color: #3a2a00; }
+      .tool[disabled] { opacity:.55; cursor:not-allowed; filter: grayscale(.5); }
+      .tool[disabled]:hover { transform: none; box-shadow: 0 3px 0 #6a4a20, inset 0 1px 0 rgba(255,255,255,.6); }
+
+      /* ---------- BOTTOM CONTROLS ---------- */
+      .bottom-right {
+        position:absolute; right:10px; bottom:200px;
+        display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; align-items:flex-end;
+      }
+      .zoom-cluster { display:flex; flex-direction:column; gap:6px; }
+
+      /* ---------- TOASTS ---------- */
+      .toast-host {
+        position:absolute; left:50%; top:80px; transform:translateX(-50%);
+        display:flex; flex-direction:column; gap:6px; pointer-events:none;
+        align-items:center;
+      }
+      .toast {
+        background: rgba(28,42,31,.97);
+        border:1px solid var(--border);
+        border-radius:10px;
+        padding:10px 16px; font-size:13px; color: var(--text);
+        animation: tslide .25s ease;
+        box-shadow: var(--shadow);
+        max-width: min(420px, 90vw);
+      }
+      .toast.good { border-color:#5a8a5e; background: linear-gradient(180deg, #2c4530, #1c2a1f); }
+      .toast.bad { border-color:#7a4040; background: linear-gradient(180deg, #4a2828, #2a1818); color:#ffd0d0; }
+      @keyframes tslide { from { opacity:0; transform: translateY(-6px); } to { opacity:1; transform:none; } }
+
+      /* Плавное появление UI при старте игры. */
+      .panel {
+        animation: panel-in .45s cubic-bezier(.2,.9,.3,1.2) both;
+      }
+      @keyframes panel-in {
+        from { opacity: 0; transform: translateY(8px) scale(.98); }
+        to   { opacity: 1; transform: none; }
+      }
+      .build { animation-delay: .1s; }
+      .order { animation-delay: .2s; }
+
+      /* ---------- MODAL ---------- */
+      .modal-host {
+        position:absolute; inset:0; display:none;
+        align-items:center; justify-content:center;
+        background: rgba(0,0,0,.6); z-index: 10;
+        backdrop-filter: blur(3px);
+      }
+      .modal-host.open { display:flex; }
+      .modal {
+        width: min(440px, 92vw);
+        padding: 22px;
+      }
+      .modal h2 { margin:0 0 10px; color: var(--accent); font-size:20px; font-family:'Georgia', serif; }
+      .modal p { color: var(--text); font-size:14px; line-height:1.5; margin: 4px 0; }
+      .modal input[type=text] {
+        width:100%; padding: 10px 12px;
+        border-radius:8px; border:1px solid var(--border);
+        background:#0d1410; color:var(--text);
+        font-size:14px; margin-top: 8px;
+      }
+      .modal .actions { display:flex; gap:8px; justify-content:flex-end; margin-top: 16px; }
+
+      /* ---------- HELP ---------- */
+      .help {
+        position:absolute; left:10px; bottom:200px;
+        max-width:300px; padding:8px 12px;
+        font-size:11px; color: var(--muted); line-height:1.4;
+      }
+      .help b { color: var(--accent); }
+
+      /* ---------- COLLAPSED ---------- */
+      .collapser {
+        position:absolute; z-index:5;
+        background: var(--panel);
+        border:1px solid var(--border);
+        border-radius: 8px;
+        width: 28px; height: 28px;
+        display:flex; align-items:center; justify-content:center;
+        font-size: 16px; cursor: pointer; color: var(--accent);
+      }
+      #order-collapser { right: calc(10px + 300px + 4px); top: 92px; transform: rotate(180deg); }
+      #build-collapser { left: 50%; transform: translateX(-50%); bottom: calc(10px + 178px + 4px); }
+      .panel.collapsed { display: none; }
+      .collapser.collapsed { transform: rotate(180deg); }
+
+      /* ---------- LOADING ---------- */
+      #loader {
+        position:absolute; inset:0;
+        background: radial-gradient(circle at 50% 30%, #1c2a1f, #0a0f0c 70%);
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        z-index: 100; transition: opacity .4s;
+        font-family: 'Georgia', serif;
+      }
+      #loader h1 { color: var(--accent); font-size: 32px; margin: 0; letter-spacing: 1px; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
+      #loader p { color: var(--muted); margin-top: 10px; font-size:14px; font-family: system-ui, sans-serif; }
+      #loader.hide { opacity:0; pointer-events:none; }
+
+      /* ---------- MOBILE ---------- */
+      @media (max-width: 720px) {
+        .order { width: 250px; padding:10px; top: 76px; right: 10px; }
+        .build { width: calc(100vw - 20px); max-height: 168px; bottom: 6px; }
+        .help { display:none; }
+        .stat { font-size:12px; padding:4px 8px; min-height: 32px; }
+        .stat .label { display:none; }
+        .brand .logo { width: 28px; height: 28px; }
+        .brand span:not(.logo) { display:none; }
+        .top-bar { padding: 8px 10px; min-height: 50px; }
+        #order-collapser { right: calc(10px + 250px + 4px); top: 84px; transform: rotate(180deg); }
+        #build-collapser { left: 50%; transform: translateX(-50%); bottom: calc(6px + 168px + 4px); }
+        .tab { font-size: 12px; padding: 6px 8px; }
+        .tool { min-width: 64px; width: 64px; padding: 4px 4px 2px; font-size: 10px; }
+        .tool .ico { font-size: 22px !important; }
+      }
+      @media (max-width: 480px) {
+        .tool { min-width: 56px; width: 56px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game"></canvas>
+      <div id="ui">
+        <div class="top-bar panel">
+          <div class="brand">
+            <span class="logo">⚱</span>
+            <span>Весёлый Могильщик</span>
+          </div>
+          <div class="spacer"></div>
+          <div class="stats">
+            <div class="stat"><span class="ico">📅</span><span><span class="label">День</span><br><span id="stat-day">1</span></span></div>
+            <div class="stat money"><span class="ico">⛀</span><span><span class="label">Монеты</span><br><span id="stat-money">500</span></span></div>
+            <div class="stat rep"><span class="ico">⭐</span><span><span class="label">Репутация</span><br><span id="stat-rep">0</span></span></div>
+          </div>
+          <button class="btn primary" id="btn-end-day" title="Завершить день">⏭ День</button>
+        </div>
+
+        <div id="order-panel" class="order panel">
+          <div class="order-head">
+            <h3 id="order-title">Заказ</h3>
+            <span class="pill" id="order-level">—</span>
+          </div>
+          <div class="req" id="order-desc">Нет активного заказа. Возьмите новый.</div>
+          <div class="row"><span class="k">Усопший</span><span class="v" id="order-name">—</span></div>
+          <div class="row"><span class="k">Желаемый стиль</span><span class="v" id="order-style">—</span></div>
+          <div class="row"><span class="k">Бюджет</span><span class="v" id="order-budget">—</span></div>
+          <div class="row"><span class="k">Дней осталось</span><span class="v" id="order-days">—</span></div>
+          <div class="progress-row">
+            <div class="row" style="border:none; padding:2px 0;"><span class="k">Затрачено / макс</span><span class="v"><span id="order-spent">0</span> / <span id="order-spent-max">—</span></span></div>
+            <div class="progress" id="order-spent-bar"><span style="width:0%"></span></div>
+          </div>
+          <div class="progress-row">
+            <div class="row" style="border:none; padding:2px 0;"><span class="k">Стиль участка / нужно</span><span class="v"><span id="order-current-style">0</span> / <span id="order-min-style">—</span></span></div>
+            <div class="progress" id="order-style-bar"><span style="width:0%"></span></div>
+          </div>
+          <div class="actions">
+            <button class="btn" id="btn-new-order">📜 Новый</button>
+            <button class="btn primary" id="btn-finish-order">✓ Сдать</button>
+          </div>
+        </div>
+        <button class="collapser" id="order-collapser" title="Свернуть/развернуть заказ">›</button>
+
+        <div id="build-panel" class="build panel">
+          <div class="tabs" id="tabs"></div>
+          <div class="tab-body">
+            <div class="tool-grid" id="tool-grid"></div>
+          </div>
+        </div>
+        <button class="collapser" id="build-collapser" title="Свернуть/развернуть инструменты">⌄</button>
+
+        <div class="bottom-right">
+          <button class="btn icon" id="btn-center" title="К центру кладбища">🎯</button>
+          <button class="btn icon" id="btn-dog" title="Позвать собаку (D)">🐕</button>
+          <div class="zoom-cluster">
+            <button class="btn icon" id="btn-zoom-in" title="Приблизить">+</button>
+            <button class="btn icon" id="btn-zoom-out" title="Отдалить">−</button>
+          </div>
+        </div>
+
+        <div class="help panel">
+          <b>Как играть:</b> Возьмите заказ, выкопайте могилу в любом удобном месте, засыпьте, поставьте надгробие, выгравируйте имя — и сдайте. Слишком шикарно — родственники не смогут заплатить, слишком скромно — откажутся.<br>
+          <b>Управление:</b> ЛКМ — действие, drag — камера, колесо/щипок — зум, <b>D</b> — собака, <b>Esc</b> — снять инструмент.
+        </div>
+
+        <div id="toast-host" class="toast-host"></div>
+
+        <div id="modal-host" class="modal-host">
+          <div id="modal" class="modal panel"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="loader">
+      <h1>⚱ Весёлый Могильщик</h1>
+      <p>Готовим лопаты…</p>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

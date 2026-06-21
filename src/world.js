@@ -1,0 +1,523 @@
+// Мир кладбища: сетка GRID_SIZE×GRID_SIZE клеток + участки (plots), внутри которых
+// разрешено копать могилы. Снаружи участков — газон с возможностью ставить
+// цветы, дорожки и декор, но не могилы.
+
+import * as THREE from 'three';
+import { CELL, ITEM_DEFS, defByCellId, buildItemMesh, buildPitMesh, buildFilledMesh } from './items.js';
+import { getGroundTexture, getPlotTexture } from './textures.js';
+
+export const GRID_SIZE = 200;
+export const CELL_SIZE = 1;
+
+// Уровень участка: чем выше, тем «престижнее» зона.
+// 0 — нет участка (нельзя копать).
+// 1 — обычный, 2 — средний, 3 — богатый, 4 — VIP-склеп.
+export const PLOT = {
+  NONE: 0,
+  POOR: 1,
+  STANDARD: 2,
+  RICH: 3,
+  VIP: 4,
+};
+
+const PLOT_COLORS = {
+  1: '#cdb88f', // светлый — простой
+  2: '#b89968', // средний
+  3: '#a07a48', // тёмный богатый
+  4: '#8a5a32', // VIP — почти чёрная земля
+};
+
+function plotName(level) {
+  return { 1: 'Простой', 2: 'Стандартный', 3: 'Богатый', 4: 'VIP-склеп' }[level] || '—';
+}
+
+export class World {
+  constructor(scene) {
+    this.scene = scene;
+    this.size = GRID_SIZE;
+    this.cells = new Uint16Array(GRID_SIZE * GRID_SIZE); // 0 = трава
+    this.zones = new Uint8Array(GRID_SIZE * GRID_SIZE);  // 0 = вне участка
+    this.meta = new Map(); // cellIndex -> { name?: string, orderId?: string }
+    this.objects = new Map(); // cellIndex -> THREE.Object3D
+    this.plots = []; // [{x0,z0,x1,z1, level, label3d}]
+    this.root = new THREE.Group();
+    this.scene.add(this.root);
+
+    this._buildGround();
+    this._buildBorder();
+    this._buildEntranceGate();
+    this._scatterDecor();
+
+    this.highlight = this._buildHighlight();
+    this.highlight.visible = false;
+    this.root.add(this.highlight);
+  }
+
+  _buildGround() {
+    const half = (GRID_SIZE * CELL_SIZE) / 2;
+    const geo = new THREE.PlaneGeometry(GRID_SIZE, GRID_SIZE, 1, 1);
+    const tex = getGroundTexture(GRID_SIZE / 6);
+    // Базовый зелёный «kelly green» — гарантирует, что газон ярко-зелёный, даже
+    // если шейдер по какой-то причине не подхватил карту (свет/тон/SwiftShader и т.д.).
+    const mat = new THREE.MeshLambertMaterial({ color: 0x7ec449, map: tex });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(half - 0.5, 0, half - 0.5);
+    mesh.receiveShadow = true;
+    this.root.add(mesh);
+    this.ground = mesh;
+  }
+
+  _generatePlots() {
+    // Раскладка кладбища: центральная аллея сверху-вниз, ряды участков слева/справа.
+    // Размеры подобраны под 200×200 — игроку всегда есть, куда копать, но участки
+    // ограничены (не вся карта).
+    const cx = GRID_SIZE / 2;
+    const cz = GRID_SIZE / 2;
+    const layout = [
+      // VIP — два больших участка у входа
+      { x: cx - 22, z: cz - 38, w: 18, h: 14, level: PLOT.VIP, name: 'VIP-склеп «Юпитер»' },
+      { x: cx + 4,  z: cz - 38, w: 18, h: 14, level: PLOT.VIP, name: 'VIP-склеп «Афина»' },
+      // Богатые
+      { x: cx - 28, z: cz - 18, w: 22, h: 14, level: PLOT.RICH,     name: 'Богатый сектор «Закат»' },
+      { x: cx + 6,  z: cz - 18, w: 22, h: 14, level: PLOT.RICH,     name: 'Богатый сектор «Рассвет»' },
+      // Стандартные ряды (центральный двойной)
+      { x: cx - 28, z: cz + 2, w: 22, h: 14, level: PLOT.STANDARD, name: 'Сектор «Берёзовый»' },
+      { x: cx + 6,  z: cz + 2, w: 22, h: 14, level: PLOT.STANDARD, name: 'Сектор «Дубовый»' },
+      // Бедные
+      { x: cx - 36, z: cz + 22, w: 26, h: 14, level: PLOT.POOR, name: 'Простой сектор' },
+      { x: cx + 10, z: cz + 22, w: 26, h: 14, level: PLOT.POOR, name: 'Сектор «Туман»' },
+    ];
+
+    for (const p of layout) {
+      const x0 = Math.max(2, Math.floor(p.x));
+      const z0 = Math.max(2, Math.floor(p.z));
+      const x1 = Math.min(GRID_SIZE - 3, x0 + p.w - 1);
+      const z1 = Math.min(GRID_SIZE - 3, z0 + p.h - 1);
+      const plot = { x0, z0, x1, z1, level: p.level, name: p.name };
+      this.plots.push(plot);
+      for (let z = z0; z <= z1; z++) {
+        for (let x = x0; x <= x1; x++) {
+          this.zones[z * GRID_SIZE + x] = p.level;
+        }
+      }
+    }
+  }
+
+  _buildPlotsVisuals() {
+    // Для каждого участка рисуем «вспаханный» прямоугольник чуть выше газона.
+    for (const p of this.plots) {
+      const w = (p.x1 - p.x0 + 1);
+      const h = (p.z1 - p.z0 + 1);
+      const tex = getPlotTexture(Math.max(2, w / 4));
+      const mat = new THREE.MeshLambertMaterial({
+        color: PLOT_COLORS[p.level] || '#a07a48',
+        map: tex,
+        flatShading: true,
+      });
+      const geo = new THREE.PlaneGeometry(w, h);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(p.x0 + w / 2 - 0.5, 0.005, p.z0 + h / 2 - 0.5);
+      mesh.receiveShadow = true;
+      this.root.add(mesh);
+
+      // Контур из тёмных «брёвнышек» по краям участка.
+      const border = this._buildPlotBorder(p);
+      this.root.add(border);
+
+      // Лейбл-табличка с названием участка.
+      const label = this._buildPlotLabel(p);
+      this.root.add(label);
+    }
+  }
+
+  _buildPlotBorder(p) {
+    const g = new THREE.Group();
+    const w = p.x1 - p.x0 + 1, h = p.z1 - p.z0 + 1;
+    const cx = p.x0 + w / 2 - 0.5, cz = p.z0 + h / 2 - 0.5;
+    const m = new THREE.MeshLambertMaterial({ color: 0x6c4a26, flatShading: true });
+    const top = new THREE.Mesh(new THREE.BoxGeometry(w + 0.4, 0.18, 0.18), m);
+    top.position.set(cx, 0.09, cz - h / 2 - 0.1);
+    const bot = top.clone(); bot.position.set(cx, 0.09, cz + h / 2 + 0.1);
+    const left = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, h + 0.4), m);
+    left.position.set(cx - w / 2 - 0.1, 0.09, cz);
+    const right = left.clone(); right.position.set(cx + w / 2 + 0.1, 0.09, cz);
+    [top, bot, left, right].forEach(b => { b.castShadow = true; b.receiveShadow = true; g.add(b); });
+    return g;
+  }
+
+  _buildPlotLabel(p) {
+    // Маленькая табличка с названием участка над землёй, как «постовой указатель».
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 80;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#3a2a1a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#dab26a'; ctx.lineWidth = 4;
+    ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+    ctx.fillStyle = '#f5e6c8';
+    ctx.font = 'bold 22px Georgia, serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(p.name, canvas.width / 2, canvas.height / 2 - 4);
+    ctx.font = '14px Georgia, serif';
+    ctx.fillStyle = '#dab26a';
+    ctx.fillText(plotName(p.level), canvas.width / 2, canvas.height / 2 + 22);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false }));
+    sprite.scale.set(7, 2.2, 1);
+    sprite.position.set(p.x0 + (p.x1 - p.x0 + 1) / 2 - 0.5, 3.2, p.z0 - 1.5);
+    return sprite;
+  }
+
+  _buildBorder() {
+    const half = (GRID_SIZE * CELL_SIZE) / 2;
+    const m = new THREE.MeshLambertMaterial({ color: 0x2a1c10, flatShading: true });
+    const geo = new THREE.BoxGeometry(GRID_SIZE + 0.4, 0.5, 0.25);
+    const m1 = new THREE.Mesh(geo, m); m1.position.set(half - 0.5, 0.25, -0.6); this.root.add(m1);
+    const m2 = new THREE.Mesh(geo, m); m2.position.set(half - 0.5, 0.25, GRID_SIZE - 0.4); this.root.add(m2);
+    const geo2 = new THREE.BoxGeometry(0.25, 0.5, GRID_SIZE + 0.4);
+    const m3 = new THREE.Mesh(geo2, m); m3.position.set(-0.6, 0.25, half - 0.5); this.root.add(m3);
+    const m4 = new THREE.Mesh(geo2, m); m4.position.set(GRID_SIZE - 0.4, 0.25, half - 0.5); this.root.add(m4);
+  }
+
+  _buildEntranceGate() {
+    // Ворота сверху, у самого входа.
+    const g = new THREE.Group();
+    const irMat = new THREE.MeshLambertMaterial({ color: 0x222428, flatShading: true });
+    const stoneMat = new THREE.MeshLambertMaterial({ color: 0x9c958a, flatShading: true });
+    const goldMat = new THREE.MeshLambertMaterial({ color: 0xe6b240, flatShading: true });
+
+    // 2 каменные пилона
+    for (const dx of [-3, 3]) {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 1.5), stoneMat);
+      pillar.position.set(GRID_SIZE / 2 + dx, 2, -1.5);
+      pillar.castShadow = true;
+      g.add(pillar);
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(2, 0.4, 2), goldMat);
+      cap.position.set(GRID_SIZE / 2 + dx, 4.2, -1.5);
+      g.add(cap);
+    }
+    // Арка
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(3, 0.18, 6, 24, Math.PI), irMat);
+    arc.position.set(GRID_SIZE / 2, 4, -1.5);
+    arc.rotation.x = Math.PI / 2; arc.rotation.z = Math.PI;
+    g.add(arc);
+
+    this.root.add(g);
+  }
+
+  _buildHighlight() {
+    const g = new THREE.Group();
+    const geo = new THREE.PlaneGeometry(0.95, 0.95);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffd24a, transparent: true, opacity: 0.5 });
+    const m = new THREE.Mesh(geo, mat);
+    m.rotation.x = -Math.PI / 2;
+    m.position.y = 0.04;
+    g.add(m);
+    return g;
+  }
+
+  inBounds(x, z) {
+    return x >= 0 && x < GRID_SIZE && z >= 0 && z < GRID_SIZE;
+  }
+
+  index(x, z) { return z * GRID_SIZE + x; }
+
+  get(x, z) {
+    if (!this.inBounds(x, z)) return undefined;
+    return this.cells[this.index(x, z)];
+  }
+
+  // Зоны больше не ограничивают копание (как в оригинале «Весёлый Могильщик» 2010 г.).
+  // Метод сохранён для совместимости и возможной подсветки уровня участка.
+  zoneAt(x, z) {
+    if (!this.inBounds(x, z)) return PLOT.NONE;
+    return this.zones[this.index(x, z)];
+  }
+  canDigAt(x, z) { return this.inBounds(x, z); }
+
+  setHighlight(x, z, color = 0xffd24a, visible = true) {
+    if (visible && this.inBounds(x, z)) {
+      this.highlight.position.set(x, 0, z);
+      this.highlight.children[0].material.color.setHex(color);
+      this.highlight.visible = true;
+    } else {
+      this.highlight.visible = false;
+    }
+  }
+
+  set(x, z, value, meta = null) {
+    if (!this.inBounds(x, z)) return false;
+    const idx = this.index(x, z);
+    const prev = this.cells[idx];
+    if (prev === value) {
+      if (meta) this.meta.set(idx, { ...(this.meta.get(idx) || {}), ...meta });
+      return true;
+    }
+    this.cells[idx] = value;
+
+    const old = this.objects.get(idx);
+    if (old) {
+      this.root.remove(old);
+      old.traverse?.(o => { o.geometry?.dispose?.(); });
+      this.objects.delete(idx);
+    }
+
+    let mesh = null;
+    if (value === CELL.PIT) {
+      mesh = buildPitMesh();
+    } else if (value === CELL.FILLED) {
+      mesh = buildFilledMesh();
+    } else if (value !== CELL.GRASS) {
+      const def = defByCellId(value);
+      if (def) mesh = buildItemMesh(def.id);
+    }
+    if (mesh) {
+      mesh.position.set(x, 0, z);
+      this.root.add(mesh);
+      this.objects.set(idx, mesh);
+    }
+
+    if (meta) this.meta.set(idx, meta); else this.meta.delete(idx);
+    return true;
+  }
+
+  setMeta(x, z, m) {
+    const idx = this.index(x, z);
+    this.meta.set(idx, { ...(this.meta.get(idx) || {}), ...m });
+  }
+  getMeta(x, z) {
+    return this.meta.get(this.index(x, z)) || null;
+  }
+
+  // Прикрепить «табличку» с выгравированным именем к надгробию (видна в 3D).
+  attachNamePlate(x, z, name) {
+    const idx = this.index(x, z);
+    const obj = this.objects.get(idx);
+    if (!obj) return;
+    // Удалим прежнюю табличку, если уже была.
+    const old = obj.getObjectByName('namePlate');
+    if (old) obj.remove(old);
+
+    // Канвас 512×128 с тёмной гравировкой по светло-серому камню.
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 128;
+    const ctx = c.getContext('2d');
+    // Камень-подложка
+    const grad = ctx.createLinearGradient(0, 0, 0, 128);
+    grad.addColorStop(0, '#f4ede0');
+    grad.addColorStop(1, '#c9bea8');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 128);
+    // Рамка
+    ctx.strokeStyle = '#5a4a3a'; ctx.lineWidth = 6;
+    ctx.strokeRect(8, 8, 496, 112);
+    ctx.strokeStyle = '#a99479'; ctx.lineWidth = 2;
+    ctx.strokeRect(14, 14, 484, 100);
+    // Имя
+    ctx.fillStyle = '#2a1c10';
+    ctx.font = 'bold 44px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Авто-уменьшение шрифта при длинном тексте.
+    let size = 44;
+    while (size > 18 && ctx.measureText(name).width > 460) {
+      size -= 2;
+      ctx.font = `bold ${size}px Georgia, serif`;
+    }
+    ctx.fillText(name, 256, 64);
+    // Лёгкие крапинки гравировки (старение)
+    for (let i = 0; i < 60; i++) {
+      ctx.fillStyle = `rgba(60,40,25,${0.05 + Math.random() * 0.12})`;
+      ctx.beginPath();
+      ctx.arc(Math.random() * 512, Math.random() * 128, 0.5 + Math.random() * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.14), mat);
+    plate.name = 'namePlate';
+    plate.position.set(0, 0.55, 0.31); // чуть впереди надгробия
+    obj.add(plate);
+    // Дублируем с обратной стороны (двусторонняя гравировка).
+    const plateBack = plate.clone();
+    plateBack.position.set(0, 0.55, -0.31);
+    plateBack.rotation.y = Math.PI;
+    obj.add(plateBack);
+  }
+
+  // Покадровая анимация мира: ветер качает сакуры/деревья, на пруду играет блик,
+  // активная клетка-выделение пульсирует — оживляет сцену.
+  animate(t, dt) {
+    if (this._animTrees) {
+      for (let i = 0; i < this._animTrees.length; i++) {
+        const a = this._animTrees[i];
+        const w = Math.sin(t * 1.6 + a.phase) * a.amp;
+        const w2 = Math.cos(t * 0.9 + a.phase * 1.3) * a.amp * 0.6;
+        a.obj.rotation.z = w;
+        a.obj.rotation.x = w2;
+      }
+    }
+    if (this._animPonds) {
+      for (let i = 0; i < this._animPonds.length; i++) {
+        const p = this._animPonds[i];
+        // Лёгкая «дышащая» рябь: блик подскакивает по высоте и слегка пульсирует.
+        const obj = p.obj;
+        const k = 1 + 0.08 * Math.sin(t * 2.0 + p.phase);
+        // Children: [ring, water, highlight, sparkle, sparkle2]
+        if (obj.children[2]) obj.children[2].scale.set(k, 1, k);
+        if (obj.children[3]) {
+          obj.children[3].position.x = -0.18 + 0.05 * Math.sin(t * 1.4 + p.phase);
+          obj.children[3].position.z = -0.10 + 0.05 * Math.cos(t * 1.7 + p.phase);
+        }
+        if (obj.children[4]) {
+          obj.children[4].position.x = 0.15 + 0.05 * Math.cos(t * 1.1 + p.phase);
+          obj.children[4].position.z = 0.18 + 0.05 * Math.sin(t * 1.8 + p.phase);
+        }
+      }
+    }
+    // Подсветка активного выбора слегка «дышит».
+    if (this.highlight && this.highlight.visible) {
+      const k = 0.85 + 0.15 * Math.sin(t * 6);
+      this.highlight.scale.set(k, 1, k);
+    }
+    // Активные партиклы (земля от копания).
+    this._stepParticles(dt);
+  }
+
+  // Простая система партиклов: при копании летят комочки земли.
+  spawnDigParticles(x, z) {
+    if (!this._particles) this._particles = [];
+    for (let i = 0; i < 14; i++) {
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(0.06, 0.06, 0.06),
+        new THREE.MeshLambertMaterial({ color: 0x6b4528 + Math.floor(Math.random() * 0x202020) })
+      );
+      m.position.set(x + (Math.random() - 0.5) * 0.4, 0.1, z + (Math.random() - 0.5) * 0.4);
+      this.root.add(m);
+      this._particles.push({
+        m,
+        vx: (Math.random() - 0.5) * 1.4,
+        vy: 1.2 + Math.random() * 1.2,
+        vz: (Math.random() - 0.5) * 1.4,
+        life: 0.9,
+      });
+    }
+  }
+  _stepParticles(dt) {
+    if (!this._particles || this._particles.length === 0) return;
+    for (let i = this._particles.length - 1; i >= 0; i--) {
+      const p = this._particles[i];
+      p.life -= dt;
+      if (p.life <= 0) {
+        this.root.remove(p.m); p.m.geometry.dispose(); p.m.material.dispose();
+        this._particles.splice(i, 1);
+        continue;
+      }
+      p.vy -= 5 * dt;
+      p.m.position.x += p.vx * dt;
+      p.m.position.y += p.vy * dt;
+      p.m.position.z += p.vz * dt;
+      p.m.rotation.x += dt * 6;
+      p.m.rotation.z += dt * 4;
+      if (p.m.position.y < 0.05) { p.m.position.y = 0.05; p.vy = 0; p.vx *= 0.5; p.vz *= 0.5; }
+    }
+  }
+
+  // Найти случайную свободную клетку участка (для собаки/кристалла).
+  randomGrass(rand) {
+    for (let i = 0; i < 50; i++) {
+      const x = Math.floor(rand() * GRID_SIZE);
+      const z = Math.floor(rand() * GRID_SIZE);
+      if (this.get(x, z) === CELL.GRASS) return { x, z };
+    }
+    return { x: 0, z: 0 };
+  }
+
+  // Камера в начале фокусируется на пруд с сакурами (как в оригинале «Весёлый Могильщик»).
+  getStartFocus() {
+    return { x: GRID_SIZE / 2 - 12, z: GRID_SIZE / 2 - 22 };
+  }
+
+  // Декоративные деревья (включая сакуру), кусты и пруды — атмосфера оригинала.
+  _scatterDecor() {
+    const seed = 1337;
+    let s = seed;
+    const rnd = () => { s = (s * 1664525 + 1013904223) | 0; return ((s >>> 0) / 4294967296); };
+
+    // Списки для анимации (сакуры качаются на ветру, пруды бликуют).
+    this._animTrees = [];
+    this._animPonds = [];
+
+    const place = (x, z, kind) => {
+      if (!this.inBounds(x, z)) return;
+      const idx = this.index(x, z);
+      if (this.cells[idx] !== CELL.GRASS) return;
+      const def = ITEM_DEFS[kind];
+      if (!def) return;
+      const mesh = buildItemMesh(kind);
+      mesh.position.set(x, 0, z);
+      this.root.add(mesh);
+      this.objects.set(idx, mesh);
+      this.cells[idx] = def.cellId;
+      if (kind === 'tree_sakura' || kind === 'tree_oak' || kind === 'tree_pine' || kind === 'shrub') {
+        // Случайные фазы — деревья качаются вразнобой.
+        this._animTrees.push({ obj: mesh, phase: rnd() * Math.PI * 2, amp: 0.04 + rnd() * 0.06, kind });
+      } else if (kind === 'pond') {
+        this._animPonds.push({ obj: mesh, phase: rnd() * Math.PI * 2 });
+      }
+    };
+
+    const G = GRID_SIZE;
+    const cx = G / 2, cz = G / 2;
+
+    // Главное украшение — большой пруд из тайлов воды у входа (как в оригинале «Весёлый Могильщик»).
+    const pondCx = cx - 12, pondCz = cz - 22;
+    for (let dz = -3; dz <= 3; dz++) {
+      for (let dx = -4; dx <= 4; dx++) {
+        // Эллипс
+        if ((dx * dx) / 16 + (dz * dz) / 9 <= 1) {
+          place(pondCx + dx, pondCz + dz, 'pond');
+        }
+      }
+    }
+
+    // Сакуры вокруг пруда — пышный розовый пояс.
+    const sakuraSpots = [
+      [pondCx - 6, pondCz - 1], [pondCx - 5, pondCz + 3], [pondCx - 4, pondCz - 4],
+      [pondCx + 6, pondCz + 2], [pondCx + 5, pondCz - 3], [pondCx + 4, pondCz + 4],
+      [pondCx, pondCz - 5], [pondCx - 2, pondCz + 5], [pondCx + 2, pondCz + 5],
+    ];
+    for (const [x, z] of sakuraSpots) place(x, z, 'tree_sakura');
+
+    // Сакуры и дубы по периметру кладбища.
+    const placeRandTree = (x, z) => {
+      const r = rnd();
+      const k = r < 0.45 ? 'tree_sakura' : (r < 0.75 ? 'tree_oak' : (r < 0.9 ? 'tree_pine' : 'shrub'));
+      place(x, z, k);
+    };
+    for (let i = 0; i < 70; i++) {
+      placeRandTree(3 + Math.floor(rnd() * (G - 6)), 3 + Math.floor(rnd() * 4));
+    }
+    for (let i = 0; i < 70; i++) {
+      placeRandTree(3 + Math.floor(rnd() * (G - 6)), G - 7 + Math.floor(rnd() * 4));
+    }
+    for (let i = 0; i < 60; i++) {
+      placeRandTree(3 + Math.floor(rnd() * 4), 8 + Math.floor(rnd() * (G - 16)));
+    }
+    for (let i = 0; i < 60; i++) {
+      placeRandTree(G - 7 + Math.floor(rnd() * 4), 8 + Math.floor(rnd() * (G - 16)));
+    }
+
+    // Несколько фонарей вдоль центральной оси — для атмосферы.
+    for (let z = cz - 30; z <= cz + 30; z += 12) {
+      place(cx - 8, z, 'lamp');
+      place(cx + 8, z, 'lamp');
+    }
+  }
+}
